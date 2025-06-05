@@ -15,7 +15,7 @@ public interface WasteLogService {
 	 
 	 WasteLogResponseDto endCollection(WasteLogUpdateRequestDto request);
 	 
-	 List<ZoneReportDto> getZoneDailySummary(String zoneId, LocalDate startDate, LocalDate endDate);
+	 List<ZoneReportDto> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate);
 	 
 	 List<VehicleReportDto> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate);
 	

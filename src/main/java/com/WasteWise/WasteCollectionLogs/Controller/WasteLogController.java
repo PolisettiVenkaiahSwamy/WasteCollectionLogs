@@ -30,7 +30,7 @@ import com.WasteWise.WasteCollectionLogs.ServiceImpl.WasteLogServiceImpl;
 
 
 @RestController
-@RequestMapping("/api/waste-logs") 
+@RequestMapping("wastewise/admin/wastelogs") 
 public class WasteLogController {
 	
 	private final WasteLogServiceImpl wasteLogService; 
@@ -101,7 +101,7 @@ public class WasteLogController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate, // Explicit date format
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) { // Explicit date format
         
-        List<ZoneReportDto> dailyReport = wasteLogService.getZoneDailySummary(zoneId, startDate, endDate);
+        List<ZoneReportDto> dailyReport = wasteLogService.getZoneLogs(zoneId, startDate, endDate);
         return new ResponseEntity<>(dailyReport, HttpStatus.OK);
     }
     

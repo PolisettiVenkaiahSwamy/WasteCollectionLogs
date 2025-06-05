@@ -189,7 +189,7 @@ public class WasteLogServiceImpl implements WasteLogService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ZoneReportDto> getZoneDailySummary(String zoneId, LocalDate startDate, LocalDate endDate) {
+    public List<ZoneReportDto> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate) {
         logger.info("Generating daily summary for Zone: {} between {} and {}", zoneId, startDate, endDate);
 
         if (!isZoneIdValid(zoneId)) {
