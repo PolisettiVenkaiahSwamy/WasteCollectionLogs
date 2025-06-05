@@ -1,14 +1,14 @@
-Waste Collection Logs Module
+# Waste Collection Logs Module
 The Waste Collection Logs Module is designed to efficiently manage and track waste collection activities. It provides a robust system for initiating, completing, and generating insightful reports on waste collection operations. This document provides an overview of the project, including how to clone the repository, set up the database, and get started with the module.
 
-Features
+# Features
 Initiate Waste Collection Logs: Start new collection logs with details like zone, vehicle, and worker.
 Complete Waste Collection Logs: Update existing logs with completion time and total collected weight.
 Generate Zone-based Reports: Retrieve daily summaries including total weight collected and unique vehicles for specific zones over a period.
 Generate Vehicle-based Reports: Access detailed collection logs for individual vehicles within a specified date range.
 Database Integration: Seamlessly stores and retrieves all collection data in a MySQL database.
 RESTful APIs: Provides clear and structured APIs for easy integration with other systems.
-Table of Contents
+# Table of Contents
 Getting Started
 Prerequisites
 Installation
@@ -20,10 +20,10 @@ Examples
 Project Structure
 Contributing
 License
-Getting Started
+# Getting Started
 To clone the Waste Collection Logs Module repository and set it up on your local machine, follow the steps below:
 
-Prerequisites
+# Prerequisites
 Ensure you have the following installed on your system:
 
 Java 21 (as the project uses Java SDK 21)
@@ -40,7 +40,7 @@ Use the following command to clone the repository to your local machine:
 Bash
 
 git clone 'https://github.com/PolisettiVenkaiahSwamy/WasteCollectionLogs.git'
- # Assuming this is your repo URL
+Assuming this is your repo URL
 Navigate to the Cloned Directory
 After cloning, move into the project directory by running:
 
@@ -81,11 +81,10 @@ Database Overview
 You can find the database schema in the db/schema.sql file.
 
 Set Up the Database
-
 Create a Database: Open your database client and create a new database:
 SQL
 
-CREATE DATABASE waste_logs;
+CREATE DATABASE wastelogsdb;
 Run the Schema Script: Execute the script located at db/schema.sql to create all necessary tables:
 SQL
 
@@ -94,7 +93,7 @@ SOURCE /path/to/db/schema.sql;
 Update Database Credentials: Update the database configurations in src/main/resources/application.properties:
 Properties
 
-spring.datasource.url=jdbc:mysql://localhost:3306/wastelogsdb
+spring.datasource.url=jdbc:mysql://localhost:3306/waste_logs
 spring.datasource.username=<YOUR_USERNAME>
 spring.datasource.password=<YOUR_PASSWORD>
 spring.jpa.hibernate.ddl-auto=update
@@ -115,8 +114,8 @@ Base URL: All endpoints are prefixed with: http://localhost:8081/wastewise/admin
 Endpoint	Description	Method	URL Path	Request Body (Example)	Response (Example)
 Start Collection	Initiates a new waste collection log.	POST	/start	json { "zoneId": "Z001", "vehicleId": "RT001", "workerId": "W123" }	201 Created: json { "message": "Waste Collection Log Recorded Successfully", "logId": "LOG_ID_Generator" }
 End Collection	Completes an existing waste collection log with end time and collected weight.	PUT	/end	json { "logId": "LOG_ID_Generator", "weightCollected": 150.5 }	200 OK: json { "message": "Waste Collection Log Completed Successfully", "logId": "LOG_ID_Generator" }
-Get Zone Report	Retrieves a daily summary report for a specific waste collection zone.	GET	/reports/zone/{zoneId}	(N/A)	200 OK: json [ { "zoneId": "ZONE_A", "date": "2024-06-05", "vehiclesUsed": 2, "totalWeightCollectedKg": 500.0 } ]
-Get Vehicle Report	Retrieves collection logs for a specific vehicle within a given date range.	GET	/reports/vehicle/{vehicleId}	(N/A)	200 OK: json [ { "vehicleId": "VEH_001", "zoneId": "ZONE_A", "weightCollected": 120.0, "collectionDate": "2024-06-05" } ]&lt;br>204 No Content if no logs found.
+Get Zone Report	Retrieves a daily summary report for a specific waste collection zone.	GET	/reports/zone/{zoneId}	(N/A)	200 OK: json [ { "zoneId": "Z001", "date": "2024-06-05", "vehiclesUsed": 2, "totalWeightCollectedKg": 500.0 } ]
+Get Vehicle Report	Retrieves collection logs for a specific vehicle within a given date range.	GET	/reports/vehicle/{vehicleId}	(N/A)	200 OK: json [ { "vehicleId": "V001", "zoneId": "Z001", "weightCollected": 120.0, "collectionDate": "2024-06-05" } ]&lt;br>204 No Content if no logs found.
 
 Export to Sheets
 Path Parameters
@@ -183,13 +182,13 @@ JSON
   {
     "zoneId": "Z001",
     "date": "2024-06-05",
-    "numberOfVehiclesUsed": 2,
+    "uniqueVehicleCount": 2,
     "totalWeightCollectedKg": 500.0
   },
   {
     "zoneId": "Z001",
     "date": "2024-06-06",
-    "numberOfVehiclesUsed": 1,
+    "uniqueVehicleCount": 1,
     "totalWeightCollectedKg": 250.0
   }
 ]
@@ -216,3 +215,4 @@ JSON
   }
 ]
 (If no logs are found, the response will be 204 No Content with an empty body.)
+
