@@ -12,6 +12,6 @@ import java.time.LocalDate;
 public class ZoneReportDto { 
     private String zoneId;
     private LocalDate date; 
-    private Long numberOfVehiclesUsed; 
+    private Long vehiclesUsed; 
     private Double totalWeightCollectedKg;
 }
