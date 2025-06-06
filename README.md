@@ -1,5 +1,5 @@
 
-# Waste Collection Logs Module
+# Waste Collection Logs Service
 
 The **Waste Collection Logs** Module is designed to efficiently manage and track waste collection activities. It provides a robust system for initiating, completing, and generating insightful reports on waste collection operations. This document provides an overview of the project, including how to clone the repository, set up the database, and get started with the module.
 
