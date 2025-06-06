@@ -20,7 +20,7 @@ INSERT INTO waste_log (
     updated_date,
     updated_by
 ) VALUES (
-    '001',
+    'LOG001',
     'Z001',
     'RT001',
     'W001',
@@ -47,7 +47,7 @@ INSERT INTO waste_log (
     updated_date,
     updated_by
 ) VALUES (
-    '002',
+    'LOG002',
     'Z002',
     'RT001',
     'W001',
@@ -74,7 +74,7 @@ INSERT INTO waste_log (
     updated_date,
     updated_by
 ) VALUES (
-    '003',
+    'LOG003',
     'Z001',
     'RT003',
     'W002',
@@ -101,7 +101,7 @@ INSERT INTO waste_log (
     updated_date,
     updated_by
 ) VALUES (
-    '100',
+    'LOG100',
     'Z009',
     'PT001',
     'W003',
@@ -128,7 +128,7 @@ INSERT INTO waste_log (
     updated_date,
     updated_by
 ) VALUES (
-    '101',
+    'LOG101',
     'Z010',
     'PT004',
     'W004',
@@ -155,7 +155,7 @@ INSERT INTO waste_log (
     updated_date,
     updated_by
 ) VALUES (
-    '006',
+    'LOG006',
     'Z001',
     'RT001',
     'W001',
@@ -182,7 +182,7 @@ INSERT INTO waste_log (
     updated_date,
     updated_by
 ) VALUES (
-    '102',
+    'LOG102',
     'Z100',
     'PT001',
     'W003',
