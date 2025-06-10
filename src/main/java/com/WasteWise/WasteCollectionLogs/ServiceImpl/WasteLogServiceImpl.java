@@ -115,14 +115,6 @@ public class WasteLogServiceImpl implements WasteLogService {
         // Automatically set collectionStartTime
         wasteLog.setCollectionStartTime(now);
 
-        // --- NEW: Manually set createdDate and updatedDate for a NEW record ---
-        wasteLog.setCreatedDate(now);
-        wasteLog.setUpdatedDate(now); // For a new record, updatedDate is also the current time
-        // You might set createdBy and updatedBy based on authenticated user or a default here
-         wasteLog.setCreatedBy("System");
-         wasteLog.setUpdatedBy("System");
-
-
         WasteLog savedWasteLog = wasteLogRepository.save(wasteLog);
         logger.info("Waste Collection Log Initiated Successfully with ID :{}", savedWasteLog.getLogId());
 
@@ -164,12 +156,6 @@ public class WasteLogServiceImpl implements WasteLogService {
 
         existingLog.setCollectionEndTime(currentEndTime); // Use the automatically set time
         existingLog.setWeightCollected(request.getWeightCollected());
-
-        // --- NEW: Manually set updatedDate for an UPDATED record ---
-        existingLog.setUpdatedDate(LocalDateTime.now()); // Set updated date to now
-        // You might set updatedBy based on authenticated user or a default here
-        // existingLog.setUpdatedBy("CurrentUser");
-
 
         wasteLogRepository.save(existingLog);
         logger.info("Waste collection log with ID:{} completed successfully", request.getLogId());
