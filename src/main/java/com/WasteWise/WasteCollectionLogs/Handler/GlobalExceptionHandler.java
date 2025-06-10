@@ -83,7 +83,7 @@ public class GlobalExceptionHandler {
 		 *
 		 * @param ex The {@link NoReportDataFoundException} that was thrown.
 		 * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
-		 * about the missing report data and an HTTP status of {@code NOT_FOUND} (404).
+		 * about the missing report data and an HTTP status of {@code NOT_FOUND} (404)
 		 */
 		@ExceptionHandler(NoReportDataFoundException.class) // <-- NEW EXCEPTION HANDLER
 		public ResponseEntity<ErrorResponse> handleNoReportDataFoundException(NoReportDataFoundException ex) {
