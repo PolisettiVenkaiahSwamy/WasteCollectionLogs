@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @ResponseStatus(HttpStatus.CONFLICT)
 public class LogAlreadyCompletedException extends RuntimeException{
 
-	 private static final long serialVersionUID = 1L;
+	
 	 
 	public LogAlreadyCompletedException(String message) {
         super(message);

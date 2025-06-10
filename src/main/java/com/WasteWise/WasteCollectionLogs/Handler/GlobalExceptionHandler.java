@@ -74,4 +74,23 @@ public class GlobalExceptionHandler {
 	        // Returns a response entity with the structured error response and an HTTP 409 status.
 	        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
 	    }
+	 
+	 /**
+		 * Handles {@link NoReportDataFoundException} instances.
+		 * This method is invoked when a request for a report (e.g., zone or vehicle logs)
+		 * yields no data for the specified criteria. It returns an HTTP 404 Not Found status
+		 * with a specific message indicating no report data.
+		 *
+		 * @param ex The {@link NoReportDataFoundException} that was thrown.
+		 * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
+		 * about the missing report data and an HTTP status of {@code NOT_FOUND} (404).
+		 */
+		@ExceptionHandler(NoReportDataFoundException.class) // <-- NEW EXCEPTION HANDLER
+		public ResponseEntity<ErrorResponse> handleNoReportDataFoundException(NoReportDataFoundException ex) {
+			logger.warn("No Report Data Found: {}", ex.getMessage());
+			// Creates a structured error response including the HTTP status code, message, and current timestamp.
+			// Assumes you have an ErrorResponse DTO that accepts these parameters.
+			ErrorResponse error = new ErrorResponse(HttpStatus.NOT_FOUND.value(), ex.getMessage(), LocalDateTime.now());
+			return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+		}
 }
