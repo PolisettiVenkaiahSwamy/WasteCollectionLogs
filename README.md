@@ -207,7 +207,7 @@ Retrieves collection logs for a specific vehicle within a given date range.
 
 **Example Request:**
 ```bash
-curl -X GET "http://localhost:8081/wastewise/admin/wastelogs/reports/vehicle/VEH_001?startDate=2024-06-01&endDate=2024-06-07"
+curl -X GET "http://localhost:8081/wastewise/admin/wastelogs/reports/vehicle/RT001?startDate=2024-06-01&endDate=2024-06-07"
 ```
 
 **Example Response:**
