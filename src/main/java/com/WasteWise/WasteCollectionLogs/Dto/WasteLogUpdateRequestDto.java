@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class WasteLogUpdateRequestDto {
-	private String logId;
+	private Long logId;
 	private Double weightCollected;
 
 }

@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class WasteLogResponseDto {
  
-	 private String logId;
+	 private Long logId;
 	 private String zoneId;
      private String vehicleId;
 	 private String workerId;
@@ -24,7 +24,7 @@ public class WasteLogResponseDto {
 	 private String message;
 	 
 	 
-	public WasteLogResponseDto(String message, String logId) {
+	public WasteLogResponseDto(String message, Long logId) {
 		this.message=message;
 		this.logId=logId;
 	}

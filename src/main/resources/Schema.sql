@@ -3,7 +3,7 @@ CREATE DATABASE IF NOT EXISTS waste_log;
 USE waste_log;
 
 CREATE TABLE IF NOT EXISTS waste_log (
-    log_id VARCHAR(255) PRIMARY KEY,
+    log_id BIGINT PRIMARY KEY AUTOINCREMENT,
     zone_id VARCHAR(255) NOT NULL,
     vehicle_id VARCHAR(255) NOT NULL,
     worker_id VARCHAR(255) NOT NULL,
