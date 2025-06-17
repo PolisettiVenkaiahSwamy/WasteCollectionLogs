@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -20,7 +21,6 @@ import com.WasteWise.WasteCollectionLogs.Dto.WasteLogUpdateRequestDto;
 import com.WasteWise.WasteCollectionLogs.Dto.ZoneReportDto;
 import com.WasteWise.WasteCollectionLogs.Handler.InvalidInputException;
 import com.WasteWise.WasteCollectionLogs.Handler.LogAlreadyCompletedException;
-import com.WasteWise.WasteCollectionLogs.Handler.NoReportDataFoundException;
 import com.WasteWise.WasteCollectionLogs.Handler.ResourceNotFoundException;
 import com.WasteWise.WasteCollectionLogs.Model.WasteLog;
 import com.WasteWise.WasteCollectionLogs.Repository.WasteLogRepository;
@@ -187,10 +187,11 @@ public class WasteLogServiceImpl implements WasteLogService {
         List<WasteLog> completedLogs = relevantLogs.stream()
                 .filter(log -> log.getCollectionEndTime() != null && log.getWeightCollected() != null)
                 .collect(Collectors.toList());
+        
         if (completedLogs.isEmpty()) {
-            String errorMessage = String.format("No completed waste logs found for Zone ID: %s between %s and %s.", zoneId, startDate, endDate);
-            logger.info(errorMessage);
-            throw new NoReportDataFoundException(errorMessage);
+            String message = "No active completed logs found for zone ID: " + zoneId + " between " + startDate + " and " + endDate + ".";
+            logger.info(message); // Log the specific message
+            return Collections.emptyList(); // Return an empty list to indicate no data
         }
         logger.debug("Found {} completed logs for daily aggregation for Zone {}", completedLogs.size(), zoneId);
 
@@ -261,10 +262,14 @@ public class WasteLogServiceImpl implements WasteLogService {
         List<WasteLog> completedLogs = relevantLogs.stream()
                 .filter(log -> log.getCollectionEndTime() != null && log.getWeightCollected() != null)
                 .collect(Collectors.toList());
+
         if (completedLogs.isEmpty()) {
-            String errorMessage = String.format("No completed waste logs found for Vehicle ID: %s between %s and %s.", vehicleId, effectiveStartDate, effectiveEndDate);
-            logger.info(errorMessage);
-            throw new NoReportDataFoundException(errorMessage);
+            String message = String.format(
+                "No active completed logs found for vehicle ID: %s in the period %s to %s. Returning empty list.",
+                vehicleId, effectiveStartDate, effectiveEndDate
+            );
+            logger.info(message);
+            return Collections.emptyList(); // Returns an empty list
         }
 
         logger.debug("Found {} completed logs for vehicle {}", completedLogs.size(), vehicleId);

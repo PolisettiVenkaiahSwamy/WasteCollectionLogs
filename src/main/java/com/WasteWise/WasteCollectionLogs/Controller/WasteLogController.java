@@ -129,10 +129,6 @@ public class WasteLogController {
 
         logger.info("Received request for vehicle report for vehicleId: {} from {} to {}", vehicleId, startDate, endDate);
         List<VehicleReportDto> vehicleLogs = wasteLogService.getVehicleLogs(vehicleId, startDate, endDate);
-        if (vehicleLogs.isEmpty()) {
-            logger.info("No vehicle report entries found for vehicleId: {} in the specified date range.", vehicleId);
-            return ResponseEntity.noContent().build(); // 204 No Content if no logs found
-        }
         logger.info("Returning {} vehicle report entries for vehicleId: {}", vehicleLogs.size(), vehicleId);
         return ResponseEntity.ok(vehicleLogs); // 200 OK with the list of logs
     }
