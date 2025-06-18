@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.WasteWise.WasteCollectionLogs.Constants.WasteLogConstants;
 import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDto;
 import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDto;
 import com.WasteWise.WasteCollectionLogs.Dto.WasteLogStartRequestDto;
@@ -64,7 +65,7 @@ public class WasteLogController {
                 request.getZoneId(), request.getVehicleId(), request.getWorkerId());
         WasteLogResponseDto response = wasteLogService.startCollection(request);
         logger.info("Successfully started collection log with logId: {}", response.getLogId());
-        return new ResponseEntity<>(response, HttpStatus.CREATED); // HttpStatus.CREATED (201) is appropriate for resource creation
+        return new ResponseEntity<>(new WasteLogResponseDto(WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY, response.getLogId()), HttpStatus.CREATED); // HttpStatus.CREATED (201) is appropriate for resource creation
     }
 
     /**
@@ -84,7 +85,7 @@ public class WasteLogController {
                 request.getLogId(), request.getWeightCollected());
         WasteLogResponseDto response = wasteLogService.endCollection(request);
         logger.info("Successfully ended collection log with logId: {}", response.getLogId());
-        return new ResponseEntity<>(response, HttpStatus.OK); // HttpStatus.OK (200) for successful update
+        return new ResponseEntity<>(new WasteLogResponseDto(WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY,response.getLogId()),HttpStatus.OK); // HttpStatus.OK (200) for successful update
     }
 
     /**

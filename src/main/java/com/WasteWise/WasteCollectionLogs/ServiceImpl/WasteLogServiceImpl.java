@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.WasteWise.WasteCollectionLogs.Constants.WasteLogConstants;
 import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDto;
 import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDto;
 import com.WasteWise.WasteCollectionLogs.Dto.WasteLogStartRequestDto;
@@ -86,13 +87,13 @@ public class WasteLogServiceImpl implements WasteLogService {
         logger.info("Attempting to start the Waste collection log for Zone:{}, vehicle:{},worker:{}", request.getZoneId(), request.getVehicleId(), request.getWorkerId());
 
         if (!isZoneIdValid(request.getZoneId())) {
-            throw new InvalidInputException("Invalid Zone ID:" + request.getZoneId());
+            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_ZONE_ID_PROVIDED,request.getZoneId()));
         }
         if (!isVehicleIdValid(request.getVehicleId())) {
-            throw new InvalidInputException("Invalid Vehicle ID :" + request.getVehicleId());
+            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_VEHICLE_ID_PROVIDED,request.getVehicleId()));
         }
         if (!isWorkerIdValid(request.getWorkerId())) {
-            throw new InvalidInputException("Invalid Worker ID :" + request.getWorkerId());
+            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_WORKER_ID_PROVIDED,request.getWorkerId()));
         }
 
         WasteLog wasteLog = new WasteLog();
@@ -112,7 +113,7 @@ public class WasteLogServiceImpl implements WasteLogService {
         logger.info("Waste Collection Log Initiated Successfully with ID: {}", savedWasteLog.getLogId());
 
         // Now, you pass the Long logId directly to the constructor
-        return new WasteLogResponseDto("Waste Collection Log Recorded Successfully", savedWasteLog.getLogId());
+        return new WasteLogResponseDto(WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY, savedWasteLog.getLogId());
     }
 
     /**
@@ -132,21 +133,21 @@ public class WasteLogServiceImpl implements WasteLogService {
         logger.info("Attempting to complete Waste Collection Log with ID : {}", request.getLogId());
 
         WasteLog existingLog = wasteLogRepository.findById(request.getLogId()).orElseThrow(() -> {
-            String errorMessage = "Waste Log Not Found With Id{}" + request.getLogId();
+            String errorMessage = String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE,request.getLogId());
             logger.warn(errorMessage);
             return new ResourceNotFoundException(errorMessage);
         });
 
         if (existingLog.getCollectionEndTime() != null) {
             logger.warn("Attempted to update the already completed Log {}", existingLog.getLogId());
-            throw new LogAlreadyCompletedException("Waste Log with ID " + existingLog.getLogId() + " has already been completed.");
+            throw new LogAlreadyCompletedException(String.format(WasteLogConstants.LOG_ALREADY_COMPLETED_MESSAGE, existingLog.getLogId()));
         }
 
         LocalDateTime currentEndTime = LocalDateTime.now();
 
         if (currentEndTime.isBefore(existingLog.getCollectionStartTime())) {
             logger.warn("Invalid End Time for log {} : End Time {} is Before the Start time{}", existingLog.getLogId(), currentEndTime, existingLog.getCollectionStartTime());
-            throw new InvalidInputException("Collection End Time cannot be before start time.");
+            throw new InvalidInputException(WasteLogConstants.COLLECTION_END_TIME_BEFORE_START_TIME);
         }
 
         existingLog.setCollectionEndTime(currentEndTime);
@@ -156,7 +157,7 @@ public class WasteLogServiceImpl implements WasteLogService {
         wasteLogRepository.save(existingLog);
         logger.info("Waste collection log with ID:{} completed successfully", existingLog.getLogId());
         // Now, you pass the Long logId directly to the constructor
-        return new WasteLogResponseDto("Waste Collection Log Completed Successfully", existingLog.getLogId());
+        return new WasteLogResponseDto(WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY, existingLog.getLogId());
     }
 
 
@@ -176,12 +177,20 @@ public class WasteLogServiceImpl implements WasteLogService {
         logger.info("Generating daily summary for Zone: {} between {} and {}", zoneId, startDate, endDate);
 
         if (!isZoneIdValid(zoneId)) {
-            throw new InvalidInputException("Invalid Zone ID provided: " + zoneId);
+            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_ZONE_ID_PROVIDED,zoneId ));
         }
 
-        LocalDateTime startDateTime = startDate.atStartOfDay();
-        LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
+        LocalDate effectiveStartDate = (startDate != null) ? startDate : LocalDate.now();
+        LocalDate effectiveEndDate = (endDate != null) ? endDate : LocalDate.now();
 
+ 
+        if (effectiveStartDate.isAfter(effectiveEndDate)) {
+            throw new InvalidInputException(WasteLogConstants.START_DATE_CANNOT_BE_AFTER_END_DATE);
+        }
+
+        LocalDateTime startDateTime = effectiveStartDate.atStartOfDay();
+        LocalDateTime endDateTime = effectiveEndDate.atTime(LocalTime.MAX);
+        
         List<WasteLog> relevantLogs = wasteLogRepository.findByZoneIdAndCollectionStartTimeBetween(zoneId, startDateTime, endDateTime);
 
         List<WasteLog> completedLogs = relevantLogs.stream()
@@ -189,7 +198,7 @@ public class WasteLogServiceImpl implements WasteLogService {
                 .collect(Collectors.toList());
         
         if (completedLogs.isEmpty()) {
-            String message = "No active completed logs found for zone ID: " + zoneId + " between " + startDate + " and " + endDate + ".";
+            String message = String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_ZONE, zoneId, startDate , endDate);
             logger.info(message); // Log the specific message
             return Collections.emptyList(); // Return an empty list to indicate no data
         }
@@ -244,14 +253,14 @@ public class WasteLogServiceImpl implements WasteLogService {
         logger.info("Generating vehicle logs for Vehicle: {} between {} and {}", vehicleId, startDate, endDate);
 
         if (!isVehicleIdValid(vehicleId)) {
-            throw new InvalidInputException("Invalid Vehicle ID provided: " + vehicleId);
+            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_VEHICLE_ID_PROVIDED, vehicleId));
         }
 
         LocalDate effectiveStartDate = (startDate != null) ? startDate : LocalDate.now();
         LocalDate effectiveEndDate = (endDate != null) ? endDate : LocalDate.now();
 
         if (effectiveStartDate.isAfter(effectiveEndDate)) {
-            throw new InvalidInputException("Start date cannot be after end date.");
+            throw new InvalidInputException(WasteLogConstants.START_DATE_CANNOT_BE_AFTER_END_DATE);
         }
 
         LocalDateTime startDateTime = effectiveStartDate.atStartOfDay();
@@ -264,9 +273,8 @@ public class WasteLogServiceImpl implements WasteLogService {
                 .collect(Collectors.toList());
 
         if (completedLogs.isEmpty()) {
-            String message = String.format(
-                "No active completed logs found for vehicle ID: %s in the period %s to %s. Returning empty list.",
-                vehicleId, effectiveStartDate, effectiveEndDate
+            String message = String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_VEHICLE,
+                     vehicleId, effectiveStartDate, effectiveEndDate
             );
             logger.info(message);
             return Collections.emptyList(); // Returns an empty list

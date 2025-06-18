@@ -25,54 +25,57 @@ public class GlobalExceptionHandler {
 	private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     
 	/**
-	 * Handles {@link ResourceNotFoundException} instances.
-	 * This method is invoked when a requested resource (e.g., a specific waste log entry)
-	 * cannot be located in the system. It returns an HTTP 404 Not Found status.
-	 *
-	 * @param ex The {@link ResourceNotFoundException} that was thrown.
-	 * @return A {@link ResponseEntity} containing a {@link WasteLogResponseDto} with the
-	 * error message and an HTTP status of {@code NOT_FOUND} (404).
-	 */
-	@ExceptionHandler(ResourceNotFoundException.class) // Specifies that this method handles ResourceNotFoundException.
-	public ResponseEntity<WasteLogResponseDto>handleResourceNotFoundException(ResourceNotFoundException ex){
-		// Logs a warning message indicating that a resource was not found, including the exception's message.
-		logger.warn("Resource Not Found :{}",ex.getMessage());
-		// Returns a response entity with the error message encapsulated in a DTO and an HTTP 404 status.
-		return new ResponseEntity<>(new WasteLogResponseDto(ex.getMessage()),HttpStatus.NOT_FOUND);
-	}
+     * Handles {@link ResourceNotFoundException} instances.
+     * It returns an HTTP 404 Not Found status with a consistent ErrorResponse.
+     *
+     * @param ex The {@link ResourceNotFoundException} that was thrown.
+     * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
+     * and an HTTP status of {@code NOT_FOUND} (404).
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        logger.warn("Resource Not Found :{}", ex.getMessage());
+        // Creating a consistent ErrorResponse
+        ErrorResponse error = new ErrorResponse(HttpStatus.NOT_FOUND.value(), ex.getMessage(), LocalDateTime.now());
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
 
-	/**
-	 * Handles {@link InvalidInputException} instances.
-	 * This method is invoked when the application receives input that is malformed,
-	 * incomplete, or does not meet expected validation rules. It returns an HTTP 400 Bad Request status.
-	 *
-	 * @param ex The {@link InvalidInputException} that was thrown.
-	 * @return A {@link ResponseEntity} containing a {@link WasteLogResponseDto} with the
-	 * error message and an HTTP status of {@code BAD_REQUEST} (400).
-	 */
-	@ExceptionHandler(InvalidInputException.class) // Specifies that this method handles InvalidInputException.
-	public ResponseEntity<WasteLogResponseDto>handleInvalidInputException(InvalidInputException ex){
-		// Logs a warning message indicating that invalid input was received, including the exception's message.
-		logger.warn("Invalid Input :{}",ex.getMessage());
-		// Returns a response entity with the error message encapsulated in a DTO and an HTTP 400 status.
-		return new ResponseEntity<>(new WasteLogResponseDto(ex.getMessage()),HttpStatus.BAD_REQUEST);
-	}
+    /**
+     * Handles {@link InvalidInputException} instances.
+     * It returns an HTTP 400 Bad Request status with a consistent ErrorResponse.
+     *
+     * @param ex The {@link InvalidInputException} that was thrown.
+     * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
+     * and an HTTP status of {@code BAD_REQUEST} (400).
+     */
+    @ExceptionHandler(InvalidInputException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidInputException(InvalidInputException ex) {
+        logger.warn("Invalid Input :{}", ex.getMessage());
+        // Creating a consistent ErrorResponse
+        ErrorResponse error = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), LocalDateTime.now());
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
 
-	/**
-	 * Handles {@link LogAlreadyCompletedException} instances.
-	 * This method is invoked when an operation is attempted on a waste log that has already
-	 * been marked as completed, indicating a conflict in the resource's state. It returns an HTTP 409 Conflict status.
-	 *
-	 * @param ex The {@link LogAlreadyCompletedException} that was thrown.
-	 * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
-	 * about the conflict and an HTTP status of {@code CONFLICT} (409).
-	 */
-	 @ExceptionHandler(LogAlreadyCompletedException.class) // Specifies that this method handles LogAlreadyCompletedException.
-	    public ResponseEntity<ErrorResponse> handleLogAlreadyCompletedException(LogAlreadyCompletedException ex) {
-	        // Creates a structured error response including the HTTP status code, message, and current timestamp.
-	        ErrorResponse error = new ErrorResponse(HttpStatus.CONFLICT.value(), ex.getMessage(), LocalDateTime.now());
-	        // Returns a response entity with the structured error response and an HTTP 409 status.
-	        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
-	    }
-		
+    /**
+     * Handles {@link LogAlreadyCompletedException} instances.
+     * It returns an HTTP 409 Conflict status with a consistent ErrorResponse.
+     *
+     * @param ex The {@link LogAlreadyCompletedException} that was thrown.
+     * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
+     * about the conflict and an HTTP status of {@code CONFLICT} (409).
+     */
+    @ExceptionHandler(LogAlreadyCompletedException.class)
+    public ResponseEntity<ErrorResponse> handleLogAlreadyCompletedException(LogAlreadyCompletedException ex) {
+        logger.warn("Log Already Completed :{}", ex.getMessage()); // Added logger for consistency
+        ErrorResponse error = new ErrorResponse(HttpStatus.CONFLICT.value(), ex.getMessage(), LocalDateTime.now());
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
+//     You might also consider a generic exception handler for unhandled exceptions
+     @ExceptionHandler(Exception.class)
+     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
+         logger.error("An unexpected error occurred: {}", ex.getMessage(), ex);
+         ErrorResponse error = new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "An unexpected error occurred. Please try again later.", LocalDateTime.now());
+         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+     }
 }
