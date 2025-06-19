@@ -24,7 +24,7 @@ public class WasteLog {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "log_id")
-	private long logId;
+	private Long logId;
 	
 	@Column(name="zone_id", nullable = false)
 	private String zoneId;

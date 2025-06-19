@@ -2,15 +2,22 @@ package com.WasteWise.WasteCollectionLogs.Handler;
 
 import java.time.LocalDateTime;
 
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import com.WasteWise.WasteCollectionLogs.Dto.ErrorResponse;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDto;
+import com.WasteWise.WasteCollectionLogs.Dto.ErrorResponse; // Assuming ErrorResponse DTO exists and matches structure
+
+import jakarta.validation.ConstraintViolationException;
 
 /**
  * Global exception handler for the WasteCollectionLogs application.
@@ -18,10 +25,9 @@ import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDto;
  * exception handling across all {@code @Controller} classes, ensuring consistent
  * error responses for different types of exceptions.
  */
-@ControllerAdvice // This annotation makes this class capable of handling exceptions thrown by any controller in the application.
+@ControllerAdvice
 public class GlobalExceptionHandler {
 	
-	// A logger instance to log messages and warnings related to exceptions.
 	private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     
 	/**
@@ -35,7 +41,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFoundException(ResourceNotFoundException ex) {
         logger.warn("Resource Not Found :{}", ex.getMessage());
-        // Creating a consistent ErrorResponse
         ErrorResponse error = new ErrorResponse(HttpStatus.NOT_FOUND.value(), ex.getMessage(), LocalDateTime.now());
         return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
     }
@@ -51,7 +56,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidInputException.class)
     public ResponseEntity<ErrorResponse> handleInvalidInputException(InvalidInputException ex) {
         logger.warn("Invalid Input :{}", ex.getMessage());
-        // Creating a consistent ErrorResponse
         ErrorResponse error = new ErrorResponse(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), LocalDateTime.now());
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
@@ -66,16 +70,136 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(LogAlreadyCompletedException.class)
     public ResponseEntity<ErrorResponse> handleLogAlreadyCompletedException(LogAlreadyCompletedException ex) {
-        logger.warn("Log Already Completed :{}", ex.getMessage()); // Added logger for consistency
+        logger.warn("Log Already Completed :{}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(HttpStatus.CONFLICT.value(), ex.getMessage(), LocalDateTime.now());
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
-//     You might also consider a generic exception handler for unhandled exceptions
-     @ExceptionHandler(Exception.class)
-     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-         logger.error("An unexpected error occurred: {}", ex.getMessage(), ex);
-         ErrorResponse error = new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "An unexpected error occurred. Please try again later.", LocalDateTime.now());
-         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
-     }
+    /**
+     * Handles {@link MethodArgumentNotValidException} instances, which occur when
+     * {@code @RequestBody} DTO validation fails. It extracts field errors and
+     * returns an HTTP 400 Bad Request status with detailed validation messages.
+     *
+     * @param ex The {@link MethodArgumentNotValidException} that was thrown.
+     * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
+     * and an HTTP status of {@code BAD_REQUEST} (400).
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST) // It's good practice to explicitly state the status here too
+    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        String errorMessage = ex.getBindingResult().getFieldErrors().stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+
+        if (errorMessage.isEmpty()) {
+            errorMessage = "Validation failed for unknown reasons.";
+        } else {
+            errorMessage = "Validation failed: " + errorMessage;
+        }
+
+        logger.warn("Method Argument Not Valid Exception: {}", errorMessage); // More specific log message
+
+        ErrorResponse errorResponse = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            errorMessage,
+            LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+    /**
+     * NEW: Handles {@link MethodArgumentTypeMismatchException} for malformed @RequestParam/@PathVariable values.
+     * This will catch errors like invalid date formats or non-numeric input for numeric fields.
+     *
+     * @param ex The {@link MethodArgumentTypeMismatchException} that was thrown.
+     * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
+     * and an HTTP status of {@code BAD_REQUEST} (400).
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String parameterName = ex.getName();
+        String invalidValue = (ex.getValue() != null) ? ex.getValue().toString() : "null";
+        String requiredType = (ex.getRequiredType() != null) ? ex.getRequiredType().getSimpleName() : "unknown";
+        String errorMessage = String.format("Parameter '%s' has invalid value '%s'. Expected type is '%s'.",
+                                            parameterName, invalidValue, requiredType);
+        
+        logger.warn("Method Argument Type Mismatch Exception: {}", errorMessage);
+
+        ErrorResponse errorResponse = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            errorMessage,
+            LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Handles {@link ConstraintViolationException} instances, which occur when
+     * {@code @PathVariable} or {@code @RequestParam} validation fails
+     * (when {@code @Validated} is on the controller class). It returns an HTTP 400 Bad Request
+     * status with detailed validation errors.
+     *
+     * @param ex The {@link ConstraintViolationException} that was thrown.
+     * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
+     * and an HTTP status of {@code BAD_REQUEST} (400).
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleConstraintViolationException(ConstraintViolationException ex) {
+        String errorMessage = ex.getConstraintViolations().stream()
+                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+                .collect(Collectors.joining(", "));
+
+        if (errorMessage.isEmpty()) {
+            errorMessage = "Validation failed for path variables or request parameters.";
+        } else {
+            errorMessage = "Validation failed: " + errorMessage;
+        }
+
+        logger.warn("Constraint Violation Exception: {}", errorMessage); // More specific log message
+
+        ErrorResponse errorResponse = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            errorMessage,
+            LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+    /**
+     * NEW: Handles {@link MissingServletRequestParameterException} for missing required @RequestParam.
+     *
+     * @param ex The {@link MissingServletRequestParameterException} that was thrown.
+     * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with details
+     * and an HTTP status of {@code BAD_REQUEST} (400).
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleMissingServletRequestParameter(MissingServletRequestParameterException ex) {
+        String errorMessage = String.format("Required request parameter '%s' is not present.", ex.getParameterName());
+        
+        logger.warn("Missing Servlet Request Parameter Exception: {}", errorMessage);
+
+        ErrorResponse errorResponse = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            errorMessage,
+            LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    }
+
+
+    /**
+     * Generic exception handler for any other unhandled exceptions.
+     * It returns an HTTP 500 Internal Server Error status with a general message.
+     *
+     * @param ex The unexpected {@link Exception} that was thrown.
+     * @return A {@link ResponseEntity} containing an {@link ErrorResponse} with a generic
+     * error message and an HTTP status of {@code INTERNAL_SERVER_ERROR} (500).
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
+        logger.error("An unexpected error occurred: {}", ex.getMessage(), ex); // Log full stack trace
+        ErrorResponse error = new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "An unexpected error occurred. Please try again later.", LocalDateTime.now());
+        return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 }

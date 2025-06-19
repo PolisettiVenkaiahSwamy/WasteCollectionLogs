@@ -22,11 +22,13 @@ public class WasteLogResponseDto {
 	 private LocalDateTime collectionEndTime;
 	 private Double weightCollected;
 	 private String message;
+	 private LocalDateTime createdDate; 
+	    private LocalDateTime updatedDate;
 	 
 	 
-	public WasteLogResponseDto(String message, Long logId) {
-		this.message=message;
+	public WasteLogResponseDto(Long logId, String message) {
 		this.logId=logId;
+		this.message=message;
 	}
 	public WasteLogResponseDto(String message) {
 			this.message=message;
@@ -41,5 +43,7 @@ public class WasteLogResponseDto {
 	        this.collectionEndTime = wasteLog.getCollectionEndTime();
 	        this.weightCollected = wasteLog.getWeightCollected();
 	        this.message = null;
+	        this.createdDate = wasteLog.getCreatedDate();
+	        this.updatedDate = wasteLog.getUpdatedDate();
 	}
 }

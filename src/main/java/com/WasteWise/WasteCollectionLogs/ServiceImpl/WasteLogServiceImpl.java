@@ -1,18 +1,14 @@
-	package com.WasteWise.WasteCollectionLogs.ServiceImpl;
+package com.WasteWise.WasteCollectionLogs.ServiceImpl;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.WasteWise.WasteCollectionLogs.Constants.WasteLogConstants;
 import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDto;
@@ -25,275 +21,133 @@ import com.WasteWise.WasteCollectionLogs.Handler.LogAlreadyCompletedException;
 import com.WasteWise.WasteCollectionLogs.Handler.ResourceNotFoundException;
 import com.WasteWise.WasteCollectionLogs.Model.WasteLog;
 import com.WasteWise.WasteCollectionLogs.Repository.WasteLogRepository;
-import com.WasteWise.WasteCollectionLogs.Service.WasteLogService;
 
-
-/**
- * Implementation of the {@link WasteLogService} interface.
- * This service class handles the core business logic for managing waste collection logs,
- * including starting, ending, and generating reports. It interacts with the {@link WasteLogRepository}
- * for data persistence and now leverages database auto-incrementing for unique ID creation.
- */
 @Service
-public class WasteLogServiceImpl implements WasteLogService {
-    private static final Logger logger = LoggerFactory.getLogger(WasteLogServiceImpl.class);
+public class WasteLogServiceImpl {
 
     private final WasteLogRepository wasteLogRepository;
 
-
-    /**
-     * Constructs a new WasteLogServiceImpl with the given repository.
-     * Spring automatically injects this dependency.
-     *
-     * @param wasteLogRepository The repository for WasteLog entities.
-     */
     public WasteLogServiceImpl(WasteLogRepository wasteLogRepository) {
         this.wasteLogRepository = wasteLogRepository;
     }
 
+    // --- Helper Validation Methods (Private) ---
 
-    /**
-     * Validates if the provided zone ID is not null or empty.
-     *
-     * @param id The zone ID to validate.
-     * @return true if the ID is valid, false otherwise.
-     */
-    private boolean isZoneIdValid(String id) {
-        logger.debug("Simulating validation for Zone Id:{}", id);
-        return id != null && !id.trim().isEmpty();
+    // This method is now empty for basic input format/presence checks,
+    // as those are handled by @NotBlank and @Pattern on WasteLogStartRequestDto
+    // and @Valid in the controller.
+    // Keep it only if you have complex business logic validations (e.g., DB existence checks
+    // not covered by simple annotations). If no such checks, the call to this method can also be removed.
+    
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate.isAfter(endDate)) {
+            throw new InvalidInputException(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE);
+        }
     }
 
-    private boolean isVehicleIdValid(String id) {
-        logger.debug("Simulating validation for Vehicle Id:{}", id);
-        return id != null && !id.trim().isEmpty();
-    }
+    // --- Public Service Methods ---
 
-    private boolean isWorkerIdValid(String id) {
-        logger.debug("Simulating validation for Worker Id:{}", id);
-        return id != null && !id.trim().isEmpty();
-    }
-
-    /**
-     * Initiates a new waste collection log.
-     * Performs validation on provided IDs and automatically sets the collection start time.
-     *
-     * @param request A {@link WasteLogStartRequestDto} containing the zone ID, vehicle ID, and worker ID.
-     * @return A {@link WasteLogResponseDto} with a success message and the newly generated log ID.
-     * @throws InvalidInputException If any of the provided IDs (zone, vehicle, worker) are invalid.
-     */
-    @Override
-    @Transactional
     public WasteLogResponseDto startCollection(WasteLogStartRequestDto request) {
-        logger.info("Attempting to start the Waste collection log for Zone:{}, vehicle:{},worker:{}", request.getZoneId(), request.getVehicleId(), request.getWorkerId());
-
-        if (!isZoneIdValid(request.getZoneId())) {
-            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_ZONE_ID_PROVIDED,request.getZoneId()));
-        }
-        if (!isVehicleIdValid(request.getVehicleId())) {
-            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_VEHICLE_ID_PROVIDED,request.getVehicleId()));
-        }
-        if (!isWorkerIdValid(request.getWorkerId())) {
-            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_WORKER_ID_PROVIDED,request.getWorkerId()));
-        }
-
+        // The DTO validation ensures the request is valid before it reaches here.
+        // The call below `validateWasteLogStartRequest` will execute an empty method for now.
+        // If no complex business logic validation is added to `validateWasteLogStartRequest`,
+    	
         WasteLog wasteLog = new WasteLog();
-        // The 'logId' will be auto-generated by the database upon save. No manual setting or formatting needed.
-
         wasteLog.setZoneId(request.getZoneId());
         wasteLog.setVehicleId(request.getVehicleId());
         wasteLog.setWorkerId(request.getWorkerId());
+        wasteLog.setCollectionStartTime(LocalDateTime.now());
+        wasteLog.setCreatedDate(LocalDateTime.now());
 
-        LocalDateTime now = LocalDateTime.now();
-        wasteLog.setCollectionStartTime(now);
-        wasteLog.setCreatedDate(now); // Set created date
+        wasteLog = wasteLogRepository.save(wasteLog);
 
-        // Save the log. The 'logId' field will be automatically populated by the database AFTER this call.
-        WasteLog savedWasteLog = wasteLogRepository.save(wasteLog);
-
-        logger.info("Waste Collection Log Initiated Successfully with ID: {}", savedWasteLog.getLogId());
-
-        // Now, you pass the Long logId directly to the constructor
-        return new WasteLogResponseDto(WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY, savedWasteLog.getLogId());
+        return new WasteLogResponseDto(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY);
     }
 
-    /**
-     * Completes an existing waste collection log by setting its end time and collected weight.
-     * Performs various validations to ensure the log exists and is in a valid state for completion.
-     *
-     * @param request A {@link WasteLogUpdateRequestDto} containing the numerical log ID and the weight collected.
-     * @return A {@link WasteLogResponseDto} with a completion success message and the log ID.
-     * @throws ResourceNotFoundException If the waste log with the given ID does not exist.
-     * @throws LogAlreadyCompletedException If the waste log has already been marked as completed.
-     * @throws InvalidInputException If the calculated collection end time is before the start time.
-     */
-    @Override
-    @Transactional
     public WasteLogResponseDto endCollection(WasteLogUpdateRequestDto request) {
-        // IMPORTANT: WasteLogUpdateRequestDto MUST contain the Long 'logId' (primary key)
-        logger.info("Attempting to complete Waste Collection Log with ID : {}", request.getLogId());
+        // --- FIX HERE: Remove the call to validateWasteLogUpdateRequest(request); ---
+        // This validation is now handled by @NotNull and @Positive on WasteLogUpdateRequestDto
+        // and @Valid in the controller.
 
-        WasteLog existingLog = wasteLogRepository.findById(request.getLogId()).orElseThrow(() -> {
-            String errorMessage = String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE,request.getLogId());
-            logger.warn(errorMessage);
-            return new ResourceNotFoundException(errorMessage);
-        });
+        WasteLog wasteLog = wasteLogRepository.findById(request.getLogId())
+                .orElseThrow(() -> new ResourceNotFoundException(String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE, request.getLogId())));
 
-        if (existingLog.getCollectionEndTime() != null) {
-            logger.warn("Attempted to update the already completed Log {}", existingLog.getLogId());
-            throw new LogAlreadyCompletedException(String.format(WasteLogConstants.LOG_ALREADY_COMPLETED_MESSAGE, existingLog.getLogId()));
+        if (wasteLog.getCollectionEndTime() != null) {
+            throw new LogAlreadyCompletedException(String.format(WasteLogConstants.LOG_ALREADY_COMPLETED_MESSAGE, request.getLogId()));
         }
 
         LocalDateTime currentEndTime = LocalDateTime.now();
-
-        if (currentEndTime.isBefore(existingLog.getCollectionStartTime())) {
-            logger.warn("Invalid End Time for log {} : End Time {} is Before the Start time{}", existingLog.getLogId(), currentEndTime, existingLog.getCollectionStartTime());
+        if (currentEndTime.isBefore(wasteLog.getCollectionStartTime())) {
             throw new InvalidInputException(WasteLogConstants.COLLECTION_END_TIME_BEFORE_START_TIME);
         }
+        
+        wasteLog.setCollectionEndTime(currentEndTime);
+        wasteLog.setWeightCollected(request.getWeightCollected());
+        wasteLog.setUpdatedDate(LocalDateTime.now());
 
-        existingLog.setCollectionEndTime(currentEndTime);
-        existingLog.setWeightCollected(request.getWeightCollected());
-        existingLog.setUpdatedDate(currentEndTime); // Set updated date
+        wasteLogRepository.save(wasteLog);
 
-        wasteLogRepository.save(existingLog);
-        logger.info("Waste collection log with ID:{} completed successfully", existingLog.getLogId());
-        // Now, you pass the Long logId directly to the constructor
-        return new WasteLogResponseDto(WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY, existingLog.getLogId());
+        return new WasteLogResponseDto(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY);
     }
 
-
-    /**
-     * Generates a daily summary report for a specific waste collection zone over a given date range.
-     * The summary includes total weight collected and unique vehicles per day for completed logs.
-     *
-     * @param zoneId The ID of the zone for which to generate the report.
-     * @param startDate The start date of the report period (inclusive).
-     * @param endDate The end date of the report period (inclusive).
-     * @return A list of {@link ZoneReportDto} objects, each summarizing a day's collection for the zone.
-     * @throws InvalidInputException If the provided zone ID is invalid.
-     */
-    @Override
-    @Transactional(readOnly = true)
     public List<ZoneReportDto> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate) {
-        logger.info("Generating daily summary for Zone: {} between {} and {}", zoneId, startDate, endDate);
+        // --- FIX HERE: No longer need to validate zoneId here. Handled by controller. ---
+        // The controller's @Pattern on @PathVariable zoneId will handle the format validation.
+        // Your code correctly removed the if-block, which is good.
 
-        if (!isZoneIdValid(zoneId)) {
-            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_ZONE_ID_PROVIDED,zoneId ));
-        }
+        validateDateRange(startDate, endDate); // This is a business logic validation, keep it.
 
-        LocalDate effectiveStartDate = (startDate != null) ? startDate : LocalDate.now();
-        LocalDate effectiveEndDate = (endDate != null) ? endDate : LocalDate.now();
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
 
- 
-        if (effectiveStartDate.isAfter(effectiveEndDate)) {
-            throw new InvalidInputException(WasteLogConstants.START_DATE_CANNOT_BE_AFTER_END_DATE);
-        }
+        List<WasteLog> logs = wasteLogRepository.findByZoneIdAndCollectionStartTimeBetween(zoneId, startDateTime, endDateTime);
 
-        LocalDateTime startDateTime = effectiveStartDate.atStartOfDay();
-        LocalDateTime endDateTime = effectiveEndDate.atTime(LocalTime.MAX);
-        
-        List<WasteLog> relevantLogs = wasteLogRepository.findByZoneIdAndCollectionStartTimeBetween(zoneId, startDateTime, endDateTime);
+        Map<LocalDate, List<WasteLog>> groupedByDate = logs.stream()
+                .filter(log -> log.getCollectionEndTime() != null)
+                .collect(Collectors.groupingBy(log -> log.getCollectionStartTime().toLocalDate()));
 
-        List<WasteLog> completedLogs = relevantLogs.stream()
-                .filter(log -> log.getCollectionEndTime() != null && log.getWeightCollected() != null)
+        List<ZoneReportDto> reports = groupedByDate.entrySet().stream()
+                .map(entry -> {
+                    LocalDate date = entry.getKey();
+                    List<WasteLog> dailyLogs = entry.getValue();
+                    double totalWeight = dailyLogs.stream()
+                            .mapToDouble(WasteLog::getWeightCollected)
+                            .sum();
+                    Set<String> uniqueVehicles = dailyLogs.stream()
+                            .map(WasteLog::getVehicleId)
+                            .collect(Collectors.toSet());
+
+                    return new ZoneReportDto(zoneId, date, (long) uniqueVehicles.size(), totalWeight);
+                })
+                .sorted((r1, r2) -> r1.getDate().compareTo(r2.getDate()))
                 .collect(Collectors.toList());
-        
-        if (completedLogs.isEmpty()) {
-            String message = String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_ZONE, zoneId, startDate , endDate);
-            logger.info(message); // Log the specific message
-            return Collections.emptyList(); // Return an empty list to indicate no data
-        }
-        logger.debug("Found {} completed logs for daily aggregation for Zone {}", completedLogs.size(), zoneId);
 
-        Map<LocalDate, Map<String, List<WasteLog>>> groupedByDateAndZone = completedLogs.stream()
-                .collect(Collectors.groupingBy(
-                        log -> log.getCollectionStartTime().toLocalDate(),
-                        Collectors.groupingBy(WasteLog::getZoneId)
-                ));
-
-        List<ZoneReportDto> dailyReports = new ArrayList<>();
-
-        groupedByDateAndZone.forEach((date, zoneMap) -> {
-            zoneMap.forEach((currentZoneId, logsForDateAndZone) -> {
-                double totalWeight = logsForDateAndZone.stream()
-                        .mapToDouble(log -> log.getWeightCollected() != null ? log.getWeightCollected() : 0.0)
-                        .sum();
-
-                long uniqueVehicles = logsForDateAndZone.stream()
-                        .map(WasteLog::getVehicleId)
-                        .distinct()
-                        .count();
-
-                dailyReports.add(new ZoneReportDto(
-                        currentZoneId,
-                        date,
-                        uniqueVehicles,
-                        totalWeight
-                ));
-            });
-        });
-
-        dailyReports.sort((r1, r2) -> r1.getDate().compareTo(r2.getDate()));
-
-        logger.info("Generated daily summary report for Zone {} with {} entries.", zoneId, dailyReports.size());
-        return dailyReports;
+        return reports;
     }
-
-    /**
-     * Retrieves a report of completed waste collection logs for a specific vehicle within a given date range.
-     *
-     * @param vehicleId The ID of the vehicle for which to generate the report.
-     * @param startDate The start date of the report period (inclusive). If null, defaults to today.
-     * @param endDate The end date of the report period (inclusive). If null, defaults to today.
-     * @return A list of {@link VehicleReportDto} objects, each representing a collection log for the vehicle.
-     * @throws InvalidInputException If the provided vehicle ID is invalid or if the start date is after the end date.
-     */
-    @Override
-    @Transactional(readOnly = true)
+    
     public List<VehicleReportDto> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate) {
-        logger.info("Generating vehicle logs for Vehicle: {} between {} and {}", vehicleId, startDate, endDate);
+        // --- FIX HERE: No longer need to validate vehicleId here. Handled by controller. ---
+        // The controller's @Pattern on @PathVariable vehicleId will handle the format validation.
+        // Your code correctly removed the if-block, which is good.
 
-        if (!isVehicleIdValid(vehicleId)) {
-            throw new InvalidInputException(String.format(WasteLogConstants.INVALID_VEHICLE_ID_PROVIDED, vehicleId));
-        }
+        validateDateRange(startDate, endDate); // This is a business logic validation, keep it.
 
-        LocalDate effectiveStartDate = (startDate != null) ? startDate : LocalDate.now();
-        LocalDate effectiveEndDate = (endDate != null) ? endDate : LocalDate.now();
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
 
-        if (effectiveStartDate.isAfter(effectiveEndDate)) {
-            throw new InvalidInputException(WasteLogConstants.START_DATE_CANNOT_BE_AFTER_END_DATE);
-        }
+        List<WasteLog> logs = wasteLogRepository.findByVehicleIdAndCollectionStartTimeBetween(vehicleId, startDateTime, endDateTime);
 
-        LocalDateTime startDateTime = effectiveStartDate.atStartOfDay();
-        LocalDateTime endDateTime = effectiveEndDate.atTime(LocalTime.MAX);
-
-        List<WasteLog> relevantLogs = wasteLogRepository.findByVehicleIdAndCollectionStartTimeBetween(vehicleId, startDateTime, endDateTime);
-
-        List<WasteLog> completedLogs = relevantLogs.stream()
-                .filter(log -> log.getCollectionEndTime() != null && log.getWeightCollected() != null)
-                .collect(Collectors.toList());
-
-        if (completedLogs.isEmpty()) {
-            String message = String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_VEHICLE,
-                     vehicleId, effectiveStartDate, effectiveEndDate
-            );
-            logger.info(message);
-            return Collections.emptyList(); // Returns an empty list
-        }
-
-        logger.debug("Found {} completed logs for vehicle {}", completedLogs.size(), vehicleId);
-
-        List<VehicleReportDto> vehicleReports = completedLogs.stream()
+        List<VehicleReportDto> reports = logs.stream()
+                .filter(log -> log.getCollectionEndTime() != null)
                 .map(log -> new VehicleReportDto(
                         log.getVehicleId(),
                         log.getZoneId(),
                         log.getWeightCollected(),
                         log.getCollectionStartTime().toLocalDate()
                 ))
+                .sorted((r1, r2) -> r1.getCollectionDate().compareTo(r2.getCollectionDate()))
                 .collect(Collectors.toList());
 
-        vehicleReports.sort((r1, r2) -> r1.getCollectionDate().compareTo(r2.getCollectionDate()));
-
-        logger.info("Generated vehicle report for Vehicle {} with {} entries.", vehicleId, vehicleReports.size());
-        return vehicleReports;
+        return reports;
     }
 }
