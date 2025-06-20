@@ -22,36 +22,65 @@ import com.WasteWise.WasteCollectionLogs.Handler.ResourceNotFoundException;
 import com.WasteWise.WasteCollectionLogs.Model.WasteLog;
 import com.WasteWise.WasteCollectionLogs.Repository.WasteLogRepository;
 
+/**
+ * Service implementation for managing waste collection logs.
+ * This class handles the business logic related to starting, ending, and reporting waste collection activities.
+ */
 @Service
 public class WasteLogServiceImpl {
 
     private final WasteLogRepository wasteLogRepository;
 
+    /**
+     * Constructs a new WasteLogServiceImpl with the given WasteLogRepository.
+     *
+     * @param wasteLogRepository The repository for accessing waste log data.
+     */
     public WasteLogServiceImpl(WasteLogRepository wasteLogRepository) {
         this.wasteLogRepository = wasteLogRepository;
     }
 
-    // --- Helper Validation Methods (Private) ---
-
-    // This method is now empty for basic input format/presence checks,
-    // as those are handled by @NotBlank and @Pattern on WasteLogStartRequestDto
-    // and @Valid in the controller.
-    // Keep it only if you have complex business logic validations (e.g., DB existence checks
-    // not covered by simple annotations). If no such checks, the call to this method can also be removed.
-    
+    /**
+     * Validates if the start date is not after the end date.
+     *
+     * @param startDate The start date of the reporting period.
+     * @param endDate The end date of the reporting period.
+     * @throws InvalidInputException if the end date is before the start date.
+     */
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
         if (startDate.isAfter(endDate)) {
             throw new InvalidInputException(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE);
         }
     }
 
+    /**
+     * Validates that no active waste collection log already exists for a given worker, zone, and vehicle.
+     * An active log is one where the `collectionEndTime` is null.
+     *
+     * @param workerId The ID of the worker.
+     * @param zoneId The ID of the zone.
+     * @param vehicleId The ID of the vehicle.
+     * @throws InvalidInputException if an active log is found for the given criteria.
+     */
+    private void validateNoActiveLogExists(String workerId, String zoneId, String vehicleId) {
+        if (wasteLogRepository.findByWorkerIdAndZoneIdAndVehicleIdAndCollectionEndTimeIsNull(
+                workerId, zoneId, vehicleId).isPresent()) {
+            throw new InvalidInputException( String.format(WasteLogConstants.ACTIVE_LOG_EXISTS_MESSAGE, workerId, zoneId, vehicleId));
+        }
+    }
     // --- Public Service Methods ---
 
+    /**
+     * Starts a new waste collection log.
+     * Validates that no active log exists for the given worker, zone, and vehicle before creating a new log.
+     *
+     * @param request The DTO containing information to start a waste collection log (worker ID, zone ID, vehicle ID).
+     * @return A WasteLogResponseDto with the ID of the newly created log and a success message.
+     */
     public WasteLogResponseDto startCollection(WasteLogStartRequestDto request) {
         // The DTO validation ensures the request is valid before it reaches here.
-        // The call below `validateWasteLogStartRequest` will execute an empty method for now.
-        // If no complex business logic validation is added to `validateWasteLogStartRequest`,
-    	
+    	validateNoActiveLogExists(request.getWorkerId(), request.getZoneId(), request.getVehicleId());
+
         WasteLog wasteLog = new WasteLog();
         wasteLog.setZoneId(request.getZoneId());
         wasteLog.setVehicleId(request.getVehicleId());
@@ -64,10 +93,18 @@ public class WasteLogServiceImpl {
         return new WasteLogResponseDto(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY);
     }
 
+    /**
+     * Ends an existing waste collection log.
+     * Retrieves the log by its ID, validates that it hasn't been completed already,
+     * and ensures the end time is not before the start time.
+     *
+     * @param request The DTO containing the log ID and the weight collected.
+     * @return A WasteLogResponseDto with the ID of the updated log and a success message.
+     * @throws ResourceNotFoundException if the waste log with the given ID is not found.
+     * @throws LogAlreadyCompletedException if the waste log has already been completed.
+     * @throws InvalidInputException if the collection end time is before the collection start time.
+     */
     public WasteLogResponseDto endCollection(WasteLogUpdateRequestDto request) {
-        // --- FIX HERE: Remove the call to validateWasteLogUpdateRequest(request); ---
-        // This validation is now handled by @NotNull and @Positive on WasteLogUpdateRequestDto
-        // and @Valid in the controller.
 
         WasteLog wasteLog = wasteLogRepository.findById(request.getLogId())
                 .orElseThrow(() -> new ResourceNotFoundException(String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE, request.getLogId())));
@@ -80,7 +117,7 @@ public class WasteLogServiceImpl {
         if (currentEndTime.isBefore(wasteLog.getCollectionStartTime())) {
             throw new InvalidInputException(WasteLogConstants.COLLECTION_END_TIME_BEFORE_START_TIME);
         }
-        
+
         wasteLog.setCollectionEndTime(currentEndTime);
         wasteLog.setWeightCollected(request.getWeightCollected());
         wasteLog.setUpdatedDate(LocalDateTime.now());
@@ -90,12 +127,19 @@ public class WasteLogServiceImpl {
         return new WasteLogResponseDto(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY);
     }
 
+    /**
+     * Retrieves a report of waste collection logs for a specific zone within a given date range.
+     * The reports are grouped by date and include total weight collected and the count of unique vehicles used.
+     *
+     * @param zoneId The ID of the zone to retrieve logs for.
+     * @param startDate The start date of the reporting period.
+     * @param endDate The end date of the reporting period.
+     * @return A list of ZoneReportDto objects, sorted by date.
+     * @throws InvalidInputException if the end date is before the start date.
+     */
     public List<ZoneReportDto> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate) {
-        // --- FIX HERE: No longer need to validate zoneId here. Handled by controller. ---
-        // The controller's @Pattern on @PathVariable zoneId will handle the format validation.
-        // Your code correctly removed the if-block, which is good.
 
-        validateDateRange(startDate, endDate); // This is a business logic validation, keep it.
+        validateDateRange(startDate, endDate); 
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
@@ -103,7 +147,7 @@ public class WasteLogServiceImpl {
         List<WasteLog> logs = wasteLogRepository.findByZoneIdAndCollectionStartTimeBetween(zoneId, startDateTime, endDateTime);
 
         Map<LocalDate, List<WasteLog>> groupedByDate = logs.stream()
-                .filter(log -> log.getCollectionEndTime() != null)
+                .filter(log -> log.getCollectionEndTime() != null) 
                 .collect(Collectors.groupingBy(log -> log.getCollectionStartTime().toLocalDate()));
 
         List<ZoneReportDto> reports = groupedByDate.entrySet().stream()
@@ -124,13 +168,19 @@ public class WasteLogServiceImpl {
 
         return reports;
     }
-    
-    public List<VehicleReportDto> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate) {
-        // --- FIX HERE: No longer need to validate vehicleId here. Handled by controller. ---
-        // The controller's @Pattern on @PathVariable vehicleId will handle the format validation.
-        // Your code correctly removed the if-block, which is good.
 
-        validateDateRange(startDate, endDate); // This is a business logic validation, keep it.
+    /**
+     * Retrieves a report of waste collection logs for a specific vehicle within a given date range.
+     *
+     * @param vehicleId The ID of the vehicle to retrieve logs for.
+     * @param startDate The start date of the reporting period.
+     * @param endDate The end date of the reporting period.
+     * @return A list of VehicleReportDto objects, sorted by collection date.
+     * @throws InvalidInputException if the end date is before the start date.
+     */
+    public List<VehicleReportDto> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate) {
+     
+        validateDateRange(startDate, endDate); 
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
@@ -138,7 +188,7 @@ public class WasteLogServiceImpl {
         List<WasteLog> logs = wasteLogRepository.findByVehicleIdAndCollectionStartTimeBetween(vehicleId, startDateTime, endDateTime);
 
         List<VehicleReportDto> reports = logs.stream()
-                .filter(log -> log.getCollectionEndTime() != null)
+                .filter(log -> log.getCollectionEndTime() != null) // Only include completed logs
                 .map(log -> new VehicleReportDto(
                         log.getVehicleId(),
                         log.getZoneId(),

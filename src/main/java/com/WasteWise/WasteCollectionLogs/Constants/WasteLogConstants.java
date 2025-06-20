@@ -31,4 +31,6 @@ public final class WasteLogConstants {
 	    public static final String INVALID_ZONE_ID_PROVIDED = "Invalid Zone ID provided %s"; 
 	    public static final String INVALID_VEHICLE_ID_PROVIDED = "Invalid Vehicle ID provided %s";
 	    public static final String INVALID_WORKER_ID_PROVIDED = "Invalid Worker ID provided %s";
+	    
+	    public static final String ACTIVE_LOG_EXISTS_MESSAGE = "A collection log for worker ID '%s', zone ID '%s', and vehicle ID '%s' is already active (not yet completed).";
 }
