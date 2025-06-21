@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class WasteLogStartRequestDto {
+public class WasteLogStartRequestDTO {
 
     @NotBlank(message = "Zone ID cannot be empty.")
     @Pattern(regexp = "^Z\\d{3}$", message = "Invalid Zone ID format. Must be like Z001.")

@@ -9,9 +9,9 @@ import java.time.LocalDate;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ZoneReportDto { 
+public class ZoneReportDTO { 
     private String zoneId;
     private LocalDate date; 
-    private Long vehiclesUsed; 
+    private Long totalNumberOfCollections; 
     private Double totalWeightCollectedKg;
 }

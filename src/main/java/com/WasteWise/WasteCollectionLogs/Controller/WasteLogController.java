@@ -1,11 +1,12 @@
 package com.WasteWise.WasteCollectionLogs.Controller;
 
 import com.WasteWise.WasteCollectionLogs.Constants.WasteLogConstants;
-import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDto;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDto;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogStartRequestDto;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogUpdateRequestDto;
-import com.WasteWise.WasteCollectionLogs.Dto.ZoneReportDto;
+import com.WasteWise.WasteCollectionLogs.Payload.RestResponse; 
+import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.WasteLogStartRequestDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.WasteLogUpdateRequestDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.ZoneReportDTO;
 import com.WasteWise.WasteCollectionLogs.Handler.InvalidInputException;
 import com.WasteWise.WasteCollectionLogs.Handler.LogAlreadyCompletedException;
 import com.WasteWise.WasteCollectionLogs.Handler.ResourceNotFoundException;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+
 
 /**
  * REST Controller for managing waste collection logs.
@@ -54,19 +56,25 @@ public class WasteLogController {
      * Initiates a new waste collection log.
      * This endpoint accepts a POST request with the details of a new waste collection.
      * The request body is validated automatically by Spring due to the `@Valid` annotation,
-     * ensuring that all required fields and formats in {@link WasteLogStartRequestDto} are met.
+     * ensuring that all required fields and formats in {@link WasteLogStartRequestDTO} are met.
      *
-     * @param request The {@link WasteLogStartRequestDto} containing details such as zone ID,
+     * @param request The {@link WasteLogStartRequestDTO} containing details such as zone ID,
      * vehicle ID, worker ID, and start time.
-     * @return A {@link ResponseEntity} containing a {@link WasteLogResponseDto} with the
+     * @return A {@link ResponseEntity} containing a {@link RestResponse} with the
      * details of the newly created log and an HTTP status of 201 (Created).
      * @throws InvalidInputException If any business rule validation fails (e.g., invalid ID format,
      * which should ideally be caught by @Pattern, but can also be from service).
      */
     @PostMapping("/start")
-    public ResponseEntity<WasteLogResponseDto> startCollection(@Valid @RequestBody WasteLogStartRequestDto request) {
-        WasteLogResponseDto response = wasteLogService.startCollection(request);
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    public ResponseEntity<RestResponse<Object>> startCollection(@Valid @RequestBody WasteLogStartRequestDTO request) {
+        WasteLogResponseDTO serviceResponse = wasteLogService.startCollection(request); // Service returns raw DTO
+        // Build RestResponse in the controller
+        RestResponse<Object> restResponse = new RestResponse<>(
+            true,
+            serviceResponse.getMessage(), // Use message from service DTO
+            serviceResponse // Pass the service DTO as data
+        );
+        return new ResponseEntity<>(restResponse, HttpStatus.CREATED);
     }
 
     /**
@@ -74,18 +82,24 @@ public class WasteLogController {
      * This endpoint accepts a PUT request to update an ongoing waste collection log
      * with an end time and collected weight. The request body is validated by `@Valid`.
      *
-     * @param request The {@link WasteLogUpdateRequestDto} containing the log ID to update,
+     * @param request The {@link WasteLogUpdateRequestDTO} containing the log ID to update,
      * the end time of collection, and the weight collected.
-     * @return A {@link ResponseEntity} containing a {@link WasteLogResponseDto} with the
+     * @return A {@link ResponseEntity} containing a {@link RestResponse} with the
      * updated log details and an HTTP status of 200 (OK).
      * @throws ResourceNotFoundException If the waste log with the given ID is not found.
      * @throws LogAlreadyCompletedException If the waste log has already been marked as completed.
      * @throws InvalidInputException If the provided end time is before the start time, or weight is invalid.
      */
     @PutMapping("/end")
-    public ResponseEntity<WasteLogResponseDto> endCollection(@Valid @RequestBody WasteLogUpdateRequestDto request) {
-        WasteLogResponseDto response = wasteLogService.endCollection(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<RestResponse<Object>> endCollection(@Valid @RequestBody WasteLogUpdateRequestDTO request) {
+        WasteLogResponseDTO serviceResponse = wasteLogService.endCollection(request); // Service returns raw DTO
+        // Build RestResponse in the controller
+        RestResponse<Object> restResponse = new RestResponse<>(
+            true,
+            serviceResponse.getMessage(), // Use message from service DTO
+            serviceResponse // Pass the service DTO as data
+        );
+        return ResponseEntity.ok(restResponse);
     }
 
     /**
@@ -96,9 +110,9 @@ public class WasteLogController {
      * objects using the ISO date format (YYYY-MM-DD).
      *
      * @param zoneId The unique identifier of the zone (e.g., "Z001"). Must conform to {@link WasteLogConstants#ZONE_ID_REGEX}.
-     * @param startDate The start date of the reporting period in YYYY-MM-DD format.
-     * @param endDate The end date of the reporting period in YYYY-MM-DD format.
-     * @return A {@link ResponseEntity} containing a list of {@link ZoneReportDto}, each representing
+     * @param startDate The start date of the reporting period inYYYY-MM-DD format.
+     * @param endDate The end date of the reporting period inYYYY-MM-DD format.
+     * @return A {@link ResponseEntity} containing a {@link RestResponse} with a list of {@link ZoneReportDTO}, each representing
      * a daily summary for the specified zone, and an HTTP status of 200 (OK). An empty list
      * is returned if no logs are found for the given criteria.
      * @throws InvalidInputException If the date range is invalid (e.g., startDate is after endDate).
@@ -106,14 +120,19 @@ public class WasteLogController {
      * @throws org.springframework.web.method.annotation.MethodArgumentTypeMismatchException If dates are not in correct format.
      */
     @GetMapping("/reports/zone/{zoneId}")
-    public ResponseEntity<List<ZoneReportDto>> getZoneLogs(
+    public ResponseEntity<RestResponse<Object>> getZoneLogs(
             @PathVariable @Pattern(regexp = WasteLogConstants.ZONE_ID_REGEX,
-                                   message = "Invalid Zone ID format. Must be Z### (e.g., Z001).") String zoneId,
+                    message = "Invalid Zone ID format. Must be Z### (e.g., Z001).") String zoneId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
 
-        List<ZoneReportDto> reports = wasteLogService.getZoneLogs(zoneId, startDate, endDate);
-        return ResponseEntity.ok(reports);
+        List<ZoneReportDTO> reports = wasteLogService.getZoneLogs(zoneId, startDate, endDate); // Service returns raw List
+        
+        String message = reports.isEmpty() ?
+                         String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_ZONE, zoneId, startDate.toString(), endDate.toString()) :
+                         "Zone report generated successfully.";
+        RestResponse<Object> restResponse = new RestResponse<>(true, message, reports);
+        return ResponseEntity.ok(restResponse);
     }
 
     /**
@@ -124,9 +143,9 @@ public class WasteLogController {
      * using the ISO date format.
      *
      * @param vehicleId The unique identifier of the vehicle (e.g., "RT001" or "PT001"). Must conform to {@link WasteLogConstants#VEHICLE_ID_REGEX}.
-     * @param startDate The start date of the reporting period in YYYY-MM-DD format.
-     * @param endDate The end date of the reporting period in YYYY-MM-DD format.
-     * @return A {@link ResponseEntity} containing a list of {@link VehicleReportDto}, each representing
+     * @param startDate The start date of the reporting period inYYYY-MM-DD format.
+     * @param endDate The end date of the reporting period inYYYY-MM-DD format.
+     * @return A {@link ResponseEntity} containing a {@link RestResponse} with a list of {@link VehicleReportDTO}, each representing
      * a single collection log entry for the specified vehicle, and an HTTP status of 200 (OK).
      * An empty list is returned if no logs are found.
      * @throws InvalidInputException If the date range is invalid.
@@ -134,13 +153,19 @@ public class WasteLogController {
      * @throws org.springframework.web.method.annotation.MethodArgumentTypeMismatchException If dates are not in correct format.
      */
     @GetMapping("/reports/vehicle/{vehicleId}")
-    public ResponseEntity<List<VehicleReportDto>> getVehicleLogs(
+    public ResponseEntity<RestResponse<Object>> getVehicleLogs(
             @PathVariable @Pattern(regexp = WasteLogConstants.VEHICLE_ID_REGEX,
-                                   message = "Invalid Vehicle ID format. Must be RT### or PT### (e.g., RT001).") String vehicleId,
+                    message = "Invalid Vehicle ID format. Must be RT### or PT### (e.g., RT001).") String vehicleId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
 
-        List<VehicleReportDto> reports = wasteLogService.getVehicleLogs(vehicleId, startDate, endDate);
-        return ResponseEntity.ok(reports);
+        List<VehicleReportDTO> reports = wasteLogService.getVehicleLogs(vehicleId, startDate, endDate); // Service returns raw List
+        
+        // Build RestResponse in the controller
+        String message = reports.isEmpty() ?
+                         String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_VEHICLE, vehicleId, startDate.toString(), endDate.toString()) :
+                         WasteLogConstants.VEHICLE_REPORT_GENERATED_SUCCESSFULLY;
+        RestResponse<Object> restResponse = new RestResponse<>(true, message, reports);
+        return ResponseEntity.ok(restResponse);
     }
 }

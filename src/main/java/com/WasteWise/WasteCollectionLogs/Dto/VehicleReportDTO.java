@@ -7,9 +7,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
+@AllArgsConstructor	
 @NoArgsConstructor
-public class VehicleReportDto {
+public class VehicleReportDTO {
 	    private String vehicleId;
 	    private String zoneId;
 	    private Double weightCollected;

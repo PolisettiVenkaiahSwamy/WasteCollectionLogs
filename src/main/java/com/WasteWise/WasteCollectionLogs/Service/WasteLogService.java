@@ -3,20 +3,20 @@ package com.WasteWise.WasteCollectionLogs.Service;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDto;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDto;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogStartRequestDto;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogUpdateRequestDto;
-import com.WasteWise.WasteCollectionLogs.Dto.ZoneReportDto;
+import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.WasteLogStartRequestDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.WasteLogUpdateRequestDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.ZoneReportDTO;
 
 public interface WasteLogService {
 	
-	 WasteLogResponseDto startCollection(WasteLogStartRequestDto request);
+	 WasteLogResponseDTO startCollection(WasteLogStartRequestDTO request);
 	 
-	 WasteLogResponseDto endCollection(WasteLogUpdateRequestDto request);
+	 WasteLogResponseDTO endCollection(WasteLogUpdateRequestDTO request);
 	 
-	 List<ZoneReportDto> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate);
+	 List<ZoneReportDTO> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate);
 	 
-	 List<VehicleReportDto> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate);
+	 List<VehicleReportDTO> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate);
 	
 }

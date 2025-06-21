@@ -11,11 +11,11 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.WasteWise.WasteCollectionLogs.Constants.WasteLogConstants;
-import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDto;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDto;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogStartRequestDto;
-import com.WasteWise.WasteCollectionLogs.Dto.WasteLogUpdateRequestDto;
-import com.WasteWise.WasteCollectionLogs.Dto.ZoneReportDto;
+import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.WasteLogStartRequestDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.WasteLogUpdateRequestDTO;
+import com.WasteWise.WasteCollectionLogs.Dto.ZoneReportDTO;
 import com.WasteWise.WasteCollectionLogs.Handler.InvalidInputException;
 import com.WasteWise.WasteCollectionLogs.Handler.LogAlreadyCompletedException;
 import com.WasteWise.WasteCollectionLogs.Handler.ResourceNotFoundException;
@@ -77,7 +77,7 @@ public class WasteLogServiceImpl {
      * @param request The DTO containing information to start a waste collection log (worker ID, zone ID, vehicle ID).
      * @return A WasteLogResponseDto with the ID of the newly created log and a success message.
      */
-    public WasteLogResponseDto startCollection(WasteLogStartRequestDto request) {
+    public WasteLogResponseDTO startCollection(WasteLogStartRequestDTO request) { // Original return type
         // The DTO validation ensures the request is valid before it reaches here.
     	validateNoActiveLogExists(request.getWorkerId(), request.getZoneId(), request.getVehicleId());
 
@@ -90,7 +90,7 @@ public class WasteLogServiceImpl {
 
         wasteLog = wasteLogRepository.save(wasteLog);
 
-        return new WasteLogResponseDto(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY);
+        return new WasteLogResponseDTO(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY);
     }
 
     /**
@@ -104,7 +104,7 @@ public class WasteLogServiceImpl {
      * @throws LogAlreadyCompletedException if the waste log has already been completed.
      * @throws InvalidInputException if the collection end time is before the collection start time.
      */
-    public WasteLogResponseDto endCollection(WasteLogUpdateRequestDto request) {
+    public WasteLogResponseDTO endCollection(WasteLogUpdateRequestDTO request) { // Original return type
 
         WasteLog wasteLog = wasteLogRepository.findById(request.getLogId())
                 .orElseThrow(() -> new ResourceNotFoundException(String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE, request.getLogId())));
@@ -124,7 +124,7 @@ public class WasteLogServiceImpl {
 
         wasteLogRepository.save(wasteLog);
 
-        return new WasteLogResponseDto(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY);
+        return new WasteLogResponseDTO(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY);
     }
 
     /**
@@ -137,9 +137,9 @@ public class WasteLogServiceImpl {
      * @return A list of ZoneReportDto objects, sorted by date.
      * @throws InvalidInputException if the end date is before the start date.
      */
-    public List<ZoneReportDto> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate) {
+    public List<ZoneReportDTO> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate) { // Original return type
 
-        validateDateRange(startDate, endDate); 
+        validateDateRange(startDate, endDate);
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
@@ -147,10 +147,10 @@ public class WasteLogServiceImpl {
         List<WasteLog> logs = wasteLogRepository.findByZoneIdAndCollectionStartTimeBetween(zoneId, startDateTime, endDateTime);
 
         Map<LocalDate, List<WasteLog>> groupedByDate = logs.stream()
-                .filter(log -> log.getCollectionEndTime() != null) 
+                .filter(log -> log.getCollectionEndTime() != null)
                 .collect(Collectors.groupingBy(log -> log.getCollectionStartTime().toLocalDate()));
 
-        List<ZoneReportDto> reports = groupedByDate.entrySet().stream()
+        List<ZoneReportDTO> reports = groupedByDate.entrySet().stream()
                 .map(entry -> {
                     LocalDate date = entry.getKey();
                     List<WasteLog> dailyLogs = entry.getValue();
@@ -161,7 +161,7 @@ public class WasteLogServiceImpl {
                             .map(WasteLog::getVehicleId)
                             .collect(Collectors.toSet());
 
-                    return new ZoneReportDto(zoneId, date, (long) uniqueVehicles.size(), totalWeight);
+                    return new ZoneReportDTO(zoneId, date, (long) uniqueVehicles.size(), totalWeight);
                 })
                 .sorted((r1, r2) -> r1.getDate().compareTo(r2.getDate()))
                 .collect(Collectors.toList());
@@ -178,18 +178,18 @@ public class WasteLogServiceImpl {
      * @return A list of VehicleReportDto objects, sorted by collection date.
      * @throws InvalidInputException if the end date is before the start date.
      */
-    public List<VehicleReportDto> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate) {
-     
-        validateDateRange(startDate, endDate); 
+    public List<VehicleReportDTO> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate) {
+
+        validateDateRange(startDate, endDate);
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
 
         List<WasteLog> logs = wasteLogRepository.findByVehicleIdAndCollectionStartTimeBetween(vehicleId, startDateTime, endDateTime);
 
-        List<VehicleReportDto> reports = logs.stream()
+        List<VehicleReportDTO> reports = logs.stream()
                 .filter(log -> log.getCollectionEndTime() != null) // Only include completed logs
-                .map(log -> new VehicleReportDto(
+                .map(log -> new VehicleReportDTO(
                         log.getVehicleId(),
                         log.getZoneId(),
                         log.getWeightCollected(),

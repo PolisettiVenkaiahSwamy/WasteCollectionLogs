@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class WasteLogUpdateRequestDto {
+public class WasteLogUpdateRequestDTO {
 	    @NotNull(message = "Log ID cannot be null.")
 	    @Positive(message = "Log ID must be a positive number.")
 	    private Long logId;

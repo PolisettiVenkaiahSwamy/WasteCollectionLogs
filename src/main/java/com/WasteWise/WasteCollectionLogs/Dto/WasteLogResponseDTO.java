@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class WasteLogResponseDto {
+public class WasteLogResponseDTO {
  
 	 private Long logId;
 	 private String zoneId;
@@ -26,15 +26,15 @@ public class WasteLogResponseDto {
 	    private LocalDateTime updatedDate;
 	 
 	 
-	public WasteLogResponseDto(Long logId, String message) {
+	public WasteLogResponseDTO(Long logId, String message) {
 		this.logId=logId;
 		this.message=message;
 	}
-	public WasteLogResponseDto(String message) {
+	public WasteLogResponseDTO(String message) {
 			this.message=message;
 		}
 	
-	public WasteLogResponseDto(WasteLog wasteLog) {
+	public WasteLogResponseDTO(WasteLog wasteLog) {
 		    this.logId = wasteLog.getLogId();
 	        this.zoneId = wasteLog.getZoneId();
 	        this.vehicleId = wasteLog.getVehicleId();
