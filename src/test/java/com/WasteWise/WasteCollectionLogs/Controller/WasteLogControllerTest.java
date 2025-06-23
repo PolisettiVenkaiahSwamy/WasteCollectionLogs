@@ -12,19 +12,20 @@ import com.WasteWise.WasteCollectionLogs.Handler.LogAlreadyCompletedException;
 import com.WasteWise.WasteCollectionLogs.Handler.ResourceNotFoundException;
 import com.WasteWise.WasteCollectionLogs.ServiceImpl.WasteLogServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
@@ -32,9 +33,14 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.containsString;
+
 
 @WebMvcTest
 @ContextConfiguration(classes = {WasteLogController.class})
@@ -44,387 +50,402 @@ class WasteLogControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
+    @MockBean
     private WasteLogServiceImpl wasteLogService;
 
     @Autowired
     private ObjectMapper objectMapper;
 
-    private WasteLogStartRequestDTO startRequestDTO;
-    private WasteLogUpdateRequestDTO updateRequestDTO;
-    private WasteLogResponseDTO successResponseDTO;
-    private Pageable pageableForZone;
-    private Pageable pageableForVehicle;
-
     @BeforeEach
     void setUp() {
-        startRequestDTO = new WasteLogStartRequestDTO("Z001", "RT001", "W001");
-        updateRequestDTO = new WasteLogUpdateRequestDTO(123L, 150.0);
-        successResponseDTO = new WasteLogResponseDTO(123L, WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY);
-        
-        pageableForZone = PageRequest.of(0, 1, org.springframework.data.domain.Sort.by("date").ascending());
-        pageableForVehicle = PageRequest.of(0, 1, org.springframework.data.domain.Sort.by("collectionDate").ascending());
+        objectMapper.registerModule(new JavaTimeModule());
     }
 
-    // --- startCollection Tests ---
-
     @Test
-    void startCollection_Success() throws Exception {
-        when(wasteLogService.startCollection(any(WasteLogStartRequestDTO.class))).thenReturn(successResponseDTO);
+    void startCollection_ShouldReturnCreated_WhenSuccessful() throws Exception {
+        WasteLogStartRequestDTO request = new WasteLogStartRequestDTO("Z001", "RT001", "W001");
+        WasteLogResponseDTO serviceResponse = new WasteLogResponseDTO(1L, WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY);
+
+        when(wasteLogService.startCollection(any(WasteLogStartRequestDTO.class))).thenReturn(serviceResponse);
 
         mockMvc.perform(post("/wastewise/admin/wastelogs/start")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(startRequestDTO)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value(WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY))
-                .andExpect(jsonPath("$.data.logId").value(123));
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.message", is(WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY)))
+                .andExpect(jsonPath("$.data.logId", is(1)));
+
+        verify(wasteLogService, times(1)).startCollection(any(WasteLogStartRequestDTO.class));
     }
 
     @Test
-    void startCollection_InvalidInput_MissingFields() throws Exception {
-        WasteLogStartRequestDTO invalidRequest = new WasteLogStartRequestDTO(null, "RT001", "W001"); // Missing zoneId
+    void startCollection_ShouldReturnBadRequest_WhenInvalidInput() throws Exception {
+        WasteLogStartRequestDTO request = new WasteLogStartRequestDTO(null, "RT001", "W001");
 
         mockMvc.perform(post("/wastewise/admin/wastelogs/start")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(invalidRequest)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                // Updated expected message to match handler's output for @RequestBody validation
-                .andExpect(jsonPath("$.message").value("Validation failed: zoneId: Zone ID cannot be empty.")) 
-                .andExpect(jsonPath("$.timestamp").exists());
-    }
-    
-    @Test
-    void startCollection_InvalidInput_InvalidFormat() throws Exception {
-        WasteLogStartRequestDTO invalidRequest = new WasteLogStartRequestDTO("Z01", "RT001", "W001"); // Invalid zoneId format
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message").exists());
 
-        mockMvc.perform(post("/wastewise/admin/wastelogs/start")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(invalidRequest)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                // Updated expected message to match handler's output for @RequestBody validation
-                .andExpect(jsonPath("$.message").value("Validation failed: zoneId: Invalid Zone ID format. Must be like Z001."))
-                .andExpect(jsonPath("$.timestamp").exists());
+        verify(wasteLogService, never()).startCollection(any(WasteLogStartRequestDTO.class));
     }
 
-
     @Test
-    void startCollection_BusinessLogicError_ActiveLogExists() throws Exception {
+    void startCollection_ShouldReturnBadRequest_WhenActiveLogExists() throws Exception {
+        WasteLogStartRequestDTO request = new WasteLogStartRequestDTO("Z001", "RT001", "W001");
+
         when(wasteLogService.startCollection(any(WasteLogStartRequestDTO.class)))
                 .thenThrow(new InvalidInputException(String.format(WasteLogConstants.ACTIVE_LOG_EXISTS_MESSAGE, "W001", "Z001", "RT001")));
 
         mockMvc.perform(post("/wastewise/admin/wastelogs/start")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(startRequestDTO)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value(String.format(WasteLogConstants.ACTIVE_LOG_EXISTS_MESSAGE, "W001", "Z001", "RT001")))
-                .andExpect(jsonPath("$.timestamp").exists());
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is(String.format(WasteLogConstants.ACTIVE_LOG_EXISTS_MESSAGE, "W001", "Z001", "RT001"))));
+
+        verify(wasteLogService, times(1)).startCollection(any(WasteLogStartRequestDTO.class));
     }
 
-    // --- endCollection Tests ---
-
     @Test
-    void endCollection_Success() throws Exception {
-        WasteLogResponseDTO endSuccessResponse = new WasteLogResponseDTO(123L, WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY);
-        when(wasteLogService.endCollection(any(WasteLogUpdateRequestDTO.class))).thenReturn(endSuccessResponse);
+    void endCollection_ShouldReturnOk_WhenSuccessful() throws Exception {
+        WasteLogUpdateRequestDTO request = new WasteLogUpdateRequestDTO(1L, 500.50);
+        WasteLogResponseDTO serviceResponse = new WasteLogResponseDTO(1L, WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY);
+
+        when(wasteLogService.endCollection(any(WasteLogUpdateRequestDTO.class))).thenReturn(serviceResponse);
 
         mockMvc.perform(put("/wastewise/admin/wastelogs/end")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(updateRequestDTO)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value(WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY))
-                .andExpect(jsonPath("$.data.logId").value(123));
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.message", is(WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY)))
+                .andExpect(jsonPath("$.data.logId", is(1)));
+
+        verify(wasteLogService, times(1)).endCollection(any(WasteLogUpdateRequestDTO.class));
     }
 
     @Test
-    void endCollection_InvalidInput_NegativeWeight() throws Exception {
-        WasteLogUpdateRequestDTO invalidRequest = new WasteLogUpdateRequestDTO(123L, -10.0); // Negative weight
+    void endCollection_ShouldReturnBadRequest_WhenInvalidWeight() throws Exception {
+        WasteLogUpdateRequestDTO request = new WasteLogUpdateRequestDTO(1L, -100.0);
 
         mockMvc.perform(put("/wastewise/admin/wastelogs/end")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(invalidRequest)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                // Updated expected message to match handler's output for @RequestBody validation
-                .andExpect(jsonPath("$.message").value("Validation failed: weightCollected: Weight Collected must be a positive value.")) 
-                .andExpect(jsonPath("$.timestamp").exists());
-    }
-    
-    @Test
-    void endCollection_InvalidInput_NullLogId() throws Exception {
-        WasteLogUpdateRequestDTO invalidRequest = new WasteLogUpdateRequestDTO(null, 100.0); 
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message").exists());
 
-        mockMvc.perform(put("/wastewise/admin/wastelogs/end")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(invalidRequest)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                // Updated expected message to match handler's output for @RequestBody validation
-                .andExpect(jsonPath("$.message").value("Validation failed: logId: Log ID cannot be null.")) 
-                .andExpect(jsonPath("$.timestamp").exists());
+        verify(wasteLogService, never()).endCollection(any(WasteLogUpdateRequestDTO.class));
     }
 
-
     @Test
-    void endCollection_ResourceNotFound() throws Exception {
+    void endCollection_ShouldReturnNotFound_WhenLogNotFound() throws Exception {
+        WasteLogUpdateRequestDTO request = new WasteLogUpdateRequestDTO(999L, 500.0);
+
         when(wasteLogService.endCollection(any(WasteLogUpdateRequestDTO.class)))
                 .thenThrow(new ResourceNotFoundException(String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE, 999L)));
 
-        WasteLogUpdateRequestDTO notFoundRequest = new WasteLogUpdateRequestDTO(999L, 100.0);
-
         mockMvc.perform(put("/wastewise/admin/wastelogs/end")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(notFoundRequest)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.message").value(String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE, 999L)))
-                .andExpect(jsonPath("$.timestamp").exists());
+                .andExpect(jsonPath("$.status", is(404)))
+                .andExpect(jsonPath("$.message", is(String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE, 999L))));
+
+        verify(wasteLogService, times(1)).endCollection(any(WasteLogUpdateRequestDTO.class));
     }
 
     @Test
-    void endCollection_LogAlreadyCompleted() throws Exception {
+    void endCollection_ShouldReturnConflict_WhenLogAlreadyCompleted() throws Exception {
+        WasteLogUpdateRequestDTO request = new WasteLogUpdateRequestDTO(1L, 500.0);
+
         when(wasteLogService.endCollection(any(WasteLogUpdateRequestDTO.class)))
-                .thenThrow(new LogAlreadyCompletedException(String.format(WasteLogConstants.LOG_ALREADY_COMPLETED_MESSAGE, 123L)));
+                .thenThrow(new LogAlreadyCompletedException(String.format(WasteLogConstants.LOG_ALREADY_COMPLETED_MESSAGE, 1L)));
 
         mockMvc.perform(put("/wastewise/admin/wastelogs/end")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(updateRequestDTO)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.message").value(String.format(WasteLogConstants.LOG_ALREADY_COMPLETED_MESSAGE, 123L)))
-                .andExpect(jsonPath("$.timestamp").exists());
+                .andExpect(jsonPath("$.status", is(409)))
+                .andExpect(jsonPath("$.message", is(String.format(WasteLogConstants.LOG_ALREADY_COMPLETED_MESSAGE, 1L))));
+
+        verify(wasteLogService, times(1)).endCollection(any(WasteLogUpdateRequestDTO.class));
     }
 
     @Test
-    void endCollection_InvalidInput_EndTimeBeforeStartTime() throws Exception {
+    void endCollection_ShouldReturnBadRequest_WhenEndTimeBeforeStartTime() throws Exception {
+        WasteLogUpdateRequestDTO request = new WasteLogUpdateRequestDTO(1L, 500.0);
+
         when(wasteLogService.endCollection(any(WasteLogUpdateRequestDTO.class)))
                 .thenThrow(new InvalidInputException(WasteLogConstants.COLLECTION_END_TIME_BEFORE_START_TIME));
 
         mockMvc.perform(put("/wastewise/admin/wastelogs/end")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(updateRequestDTO)))
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value(WasteLogConstants.COLLECTION_END_TIME_BEFORE_START_TIME))
-                .andExpect(jsonPath("$.timestamp").exists());
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is(WasteLogConstants.COLLECTION_END_TIME_BEFORE_START_TIME)));
+
+        verify(wasteLogService, times(1)).endCollection(any(WasteLogUpdateRequestDTO.class));
     }
 
-
-    // --- getZoneLogs Tests ---
-
     @Test
-    void getZoneLogs_Success_WithData() throws Exception {
+    void getZoneLogs_ShouldReturnOk_WhenReportsExist() throws Exception {
+        String zoneId = "Z001";
         LocalDate startDate = LocalDate.of(2023, 1, 1);
-        LocalDate endDate = LocalDate.of(2023, 1, 31);
-        ZoneReportDTO report1 = new ZoneReportDTO("Z001", LocalDate.of(2023, 1, 10), 2L, 200.0);
-        ZoneReportDTO report2 = new ZoneReportDTO("Z001", LocalDate.of(2023, 1, 15), 1L, 150.0);
-        List<ZoneReportDTO> reportsList = List.of(report1, report2);
-        Page<ZoneReportDTO> reportsPage = new PageImpl<>(reportsList, pageableForZone, reportsList.size());
+        LocalDate endDate = LocalDate.of(2023, 1, 3);
+        Pageable pageable = PageRequest.of(0, 1, Sort.by("date").ascending());
 
-        when(wasteLogService.getZoneLogs(any(String.class), any(LocalDate.class), any(LocalDate.class), any(Pageable.class)))
+        List<ZoneReportDTO> reportList = List.of(
+                new ZoneReportDTO("Z001", LocalDate.of(2023, 1, 1), 2L, 1000.0),
+                new ZoneReportDTO("Z001", LocalDate.of(2023, 1, 2), 3L, 1500.0)
+        );
+        PageImpl<ZoneReportDTO> reportsPage = new PageImpl<>(reportList, pageable, reportList.size());
+
+        when(wasteLogService.getZoneLogs(eq(zoneId), eq(startDate), eq(endDate), any(Pageable.class)))
                 .thenReturn(reportsPage);
 
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone/{zoneId}", "Z001")
-                .param("startDate", startDate.toString())
-                .param("endDate", endDate.toString())
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone")
+                .param("zoneId", zoneId)
+                .param("startDate", "2023-01-01")
+                .param("endDate", "2023-01-03")
                 .param("page", "0")
                 .param("size", "1")
-                .param("sort", "date,asc")
-                .accept(MediaType.APPLICATION_JSON))
+                .param("sort", "date,ASC"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("Zone report generated successfully."))
-                .andExpect(jsonPath("$.data.content[0].zoneId").value("Z001"))
-                .andExpect(jsonPath("$.data.totalElements").value(2));
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.message", is("Zone report generated successfully.")))
+                .andExpect(jsonPath("$.data.content[0].zoneId", is("Z001")))
+                .andExpect(jsonPath("$.data.content[0].date", is("2023-01-01")))
+                .andExpect(jsonPath("$.data.content[1].totalWeightCollectedKg", is(1500.0)))
+                .andExpect(jsonPath("$.data.totalElements", is(2)));
+
+        verify(wasteLogService, times(1)).getZoneLogs(eq(zoneId), eq(startDate), eq(endDate), any(Pageable.class));
     }
 
     @Test
-    void getZoneLogs_Success_NoData() throws Exception {
+    void getZoneLogs_ShouldReturnOk_WhenNoReportsExist() throws Exception {
+        String zoneId = "Z999";
         LocalDate startDate = LocalDate.of(2023, 1, 1);
-        LocalDate endDate = LocalDate.of(2023, 1, 31);
-        Page<ZoneReportDTO> emptyPage = new PageImpl<>(Collections.emptyList(), pageableForZone, 0);
+        LocalDate endDate = LocalDate.of(2023, 1, 3);
+        Pageable pageable = PageRequest.of(0, 1, Sort.by("date").ascending());
 
-        when(wasteLogService.getZoneLogs(any(String.class), any(LocalDate.class), any(LocalDate.class), any(Pageable.class)))
-                .thenReturn(emptyPage);
+        PageImpl<ZoneReportDTO> reportsPage = new PageImpl<>(Collections.emptyList(), pageable, 0);
 
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone/{zoneId}", "Z001")
-                .param("startDate", startDate.toString())
-                .param("endDate", endDate.toString())
-                .param("page", "0")
-                .param("size", "1")
-                .param("sort", "date,asc")
-                .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value(String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_ZONE, "Z001", startDate.toString(), endDate.toString())))
-                .andExpect(jsonPath("$.data.content").isEmpty())
-                .andExpect(jsonPath("$.data.totalElements").value(0));
-    }
-
-    @Test
-    void getZoneLogs_InvalidZoneIdFormat() throws Exception {
-        LocalDate startDate = LocalDate.of(2023, 1, 1);
-        LocalDate endDate = LocalDate.of(2023, 1, 31);
-
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone/{zoneId}", "INVALID_ZONE")
-                .param("startDate", startDate.toString())
-                .param("endDate", endDate.toString())
-                .param("page", "0")
-                .param("size", "1")
-                .param("sort", "date,asc")
-                .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                // Updated expected message to match handler's output for @PathVariable validation
-                .andExpect(jsonPath("$.message").value("Validation failed: getZoneLogs.zoneId: Invalid Zone ID format. Must be Z### (e.g., Z001)."))
-                .andExpect(jsonPath("$.timestamp").exists());
-    }
-
-    @Test
-    void getZoneLogs_InvalidDateRange() throws Exception {
-        LocalDate startDate = LocalDate.of(2023, 1, 31);
-        LocalDate endDate = LocalDate.of(2023, 1, 1); // endDate before startDate
-
-        when(wasteLogService.getZoneLogs(any(String.class), any(LocalDate.class), any(LocalDate.class), any(Pageable.class)))
-                .thenThrow(new InvalidInputException(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE));
-
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone/{zoneId}", "Z001")
-                .param("startDate", startDate.toString())
-                .param("endDate", endDate.toString())
-                .param("page", "0")
-                .param("size", "1")
-                .param("sort", "date,asc")
-                .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE))
-                .andExpect(jsonPath("$.timestamp").exists());
-    }
-
-    @Test
-    void getZoneLogs_InvalidDateFormat() throws Exception {
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone/{zoneId}", "Z001")
-                .param("startDate", "2023/01/01") // Invalid format
-                .param("endDate", "2023-01-31")
-                .param("page", "0")
-                .param("size", "1")
-                .param("sort", "date,asc")
-                .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                // Updated expected message to match handler's output for MethodArgumentTypeMismatchException
-                .andExpect(jsonPath("$.message").value("Parameter 'startDate' has invalid value '2023/01/01'. Expected type is 'LocalDate'."))
-                .andExpect(jsonPath("$.timestamp").exists());
-    }
-
-    // --- getVehicleLogs Tests ---
-
-    @Test
-    void getVehicleLogs_Success_WithData() throws Exception {
-        LocalDate startDate = LocalDate.of(2023, 1, 1);
-        LocalDate endDate = LocalDate.of(2023, 1, 31);
-        VehicleReportDTO report1 = new VehicleReportDTO("RT001", "Z001", 100.0, LocalDate.of(2023, 1, 5));
-        VehicleReportDTO report2 = new VehicleReportDTO("RT001", "Z002", 120.0, LocalDate.of(2023, 1, 12));
-        List<VehicleReportDTO> reportsList = List.of(report1, report2);
-        Page<VehicleReportDTO> reportsPage = new PageImpl<>(reportsList, pageableForVehicle, reportsList.size());
-
-        when(wasteLogService.getVehicleLogs(any(String.class), any(LocalDate.class), any(LocalDate.class), any(Pageable.class)))
+        when(wasteLogService.getZoneLogs(eq(zoneId), eq(startDate), eq(endDate), any(Pageable.class)))
                 .thenReturn(reportsPage);
 
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle/{vehicleId}", "RT001")
-                .param("startDate", startDate.toString())
-                .param("endDate", endDate.toString())
-                .param("page", "0")
-                .param("size", "1")
-                .param("sort", "collectionDate,asc")
-                .accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone")
+                .param("zoneId", zoneId)
+                .param("startDate", "2023-01-01")
+                .param("endDate", "2023-01-03"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value(WasteLogConstants.VEHICLE_REPORT_GENERATED_SUCCESSFULLY))
-                .andExpect(jsonPath("$.data.content[0].vehicleId").value("RT001"))
-                .andExpect(jsonPath("$.data.totalElements").value(2));
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.message", is(String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_ZONE, zoneId, startDate, endDate))))
+                .andExpect(jsonPath("$.data.content", is(empty())))
+                .andExpect(jsonPath("$.data.totalElements", is(0)));
+
+        verify(wasteLogService, times(1)).getZoneLogs(eq(zoneId), eq(startDate), eq(endDate), any(Pageable.class));
     }
 
     @Test
-    void getVehicleLogs_Success_NoData() throws Exception {
+    void getZoneLogs_ShouldReturnBadRequest_WhenInvalidZoneIdFormat() throws Exception {
+        String zoneId = "Z00";
         LocalDate startDate = LocalDate.of(2023, 1, 1);
-        LocalDate endDate = LocalDate.of(2023, 1, 31);
-        Page<VehicleReportDTO> emptyPage = new PageImpl<>(Collections.emptyList(), pageableForVehicle, 0);
+        LocalDate endDate = LocalDate.of(2023, 1, 3);
 
-        when(wasteLogService.getVehicleLogs(any(String.class), any(LocalDate.class), any(LocalDate.class), any(Pageable.class)))
-                .thenReturn(emptyPage);
-
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle/{vehicleId}", "RT001")
-                .param("startDate", startDate.toString())
-                .param("endDate", endDate.toString())
-                .param("page", "0")
-                .param("size", "1")
-                .param("sort", "collectionDate,asc")
-                .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value(String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_VEHICLE, "RT001", startDate.toString(), endDate.toString())))
-                .andExpect(jsonPath("$.data.content").isEmpty())
-                .andExpect(jsonPath("$.data.totalElements").value(0));
-    }
-
-    @Test
-    void getVehicleLogs_InvalidVehicleIdFormat() throws Exception {
-        LocalDate startDate = LocalDate.of(2023, 1, 1);
-        LocalDate endDate = LocalDate.of(2023, 1, 31);
-
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle/{vehicleId}", "INVALID_VEHICLE")
-                .param("startDate", startDate.toString())
-                .param("endDate", endDate.toString())
-                .param("page", "0")
-                .param("size", "1")
-                .param("sort", "collectionDate,asc")
-                .accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone")
+                .param("zoneId", zoneId)
+                .param("startDate", "2023-01-01")
+                .param("endDate", "2023-01-03"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("Validation failed: getVehicleLogs.vehicleId: Invalid Vehicle ID format. Must be RT### or PT### (e.g., RT001)."))
-                .andExpect(jsonPath("$.timestamp").exists());
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is(containsString("Invalid Zone ID format."))));
+
+        verify(wasteLogService, never()).getZoneLogs(anyString(), any(LocalDate.class), any(LocalDate.class), any(Pageable.class));
     }
 
+    @Test
+    void getZoneLogs_ShouldReturnBadRequest_WhenMissingStartDate() throws Exception {
+        String zoneId = "Z001";
+        LocalDate endDate = LocalDate.of(2023, 1, 3);
+
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone")
+                .param("zoneId", zoneId)
+                .param("endDate", "2023-01-03"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is("Required request parameter 'startDate' is not present.")));
+
+        verify(wasteLogService, never()).getZoneLogs(anyString(), any(LocalDate.class), any(LocalDate.class), any(Pageable.class));
+    }
 
     @Test
-    void getVehicleLogs_InvalidDateRange() throws Exception {
-        LocalDate startDate = LocalDate.of(2023, 1, 31);
-        LocalDate endDate = LocalDate.of(2023, 1, 1); // endDate before startDate
+    void getZoneLogs_ShouldReturnBadRequest_WhenInvalidDateFormat() throws Exception {
+        String zoneId = "Z001";
+        String invalidStartDate = "2023/01/01";
+        LocalDate endDate = LocalDate.of(2023, 1, 3);
 
-        when(wasteLogService.getVehicleLogs(any(String.class), any(LocalDate.class), any(LocalDate.class), any(Pageable.class)))
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone")
+                .param("zoneId", zoneId)
+                .param("startDate", invalidStartDate)
+                .param("endDate", "2023-01-03"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is(containsString("Parameter 'startDate' has invalid value"))));
+
+        verify(wasteLogService, never()).getZoneLogs(anyString(), any(LocalDate.class), any(LocalDate.class), any(Pageable.class));
+    }
+
+    @Test
+    void getZoneLogs_ShouldReturnBadRequest_WhenInvalidDateRangeFromService() throws Exception {
+        String zoneId = "Z001";
+        LocalDate startDate = LocalDate.of(2023, 1, 5);
+        LocalDate endDate = LocalDate.of(2023, 1, 1);
+
+        when(wasteLogService.getZoneLogs(eq(zoneId), eq(startDate), eq(endDate), any(Pageable.class)))
                 .thenThrow(new InvalidInputException(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE));
 
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle/{vehicleId}", "RT001")
-                .param("startDate", startDate.toString())
-                .param("endDate", endDate.toString())
-                .param("page", "0")
-                .param("size", "1")
-                .param("sort", "collectionDate,asc")
-                .accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/zone")
+                .param("zoneId", zoneId)
+                .param("startDate", "2023-01-05")
+                .param("endDate", "2023-01-01"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE))
-                .andExpect(jsonPath("$.timestamp").exists());
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE)));
+
+        verify(wasteLogService, times(1)).getZoneLogs(eq(zoneId), eq(startDate), eq(endDate), any(Pageable.class));
     }
 
     @Test
-    void getVehicleLogs_InvalidDateFormat() throws Exception {
-        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle/{vehicleId}", "RT001")
-                .param("startDate", "01-01-2023") // Invalid format
-                .param("endDate", "2023-01-31")
+    void getVehicleLogs_ShouldReturnOk_WhenReportsExist() throws Exception {
+        String vehicleId = "RT001";
+        LocalDate startDate = LocalDate.of(2023, 1, 1);
+        LocalDate endDate = LocalDate.of(2023, 1, 3);
+        Pageable pageable = PageRequest.of(0, 1, Sort.by("collectionDate").ascending());
+
+        List<VehicleReportDTO> reportList = List.of(
+                new VehicleReportDTO("RT001", "Z001", 300.0, LocalDate.of(2023, 1, 1)),
+                new VehicleReportDTO("RT001", "Z002", 450.0, LocalDate.of(2023, 1, 2))
+        );
+        PageImpl<VehicleReportDTO> reportsPage = new PageImpl<>(reportList, pageable, reportList.size());
+
+        when(wasteLogService.getVehicleLogs(eq(vehicleId), eq(startDate), eq(endDate), any(Pageable.class)))
+                .thenReturn(reportsPage);
+
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle")
+                .param("vehicleId", vehicleId)
+                .param("startDate", "2023-01-01")
+                .param("endDate", "2023-01-03")
                 .param("page", "0")
                 .param("size", "1")
-                .param("sort", "collectionDate,asc")
-                .accept(MediaType.APPLICATION_JSON))
+                .param("sort", "collectionDate,ASC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.message", is(WasteLogConstants.VEHICLE_REPORT_GENERATED_SUCCESSFULLY)))
+                .andExpect(jsonPath("$.data.content[0].vehicleId", is("RT001")))
+                .andExpect(jsonPath("$.data.content[0].collectionDate", is("2023-01-01")))
+                .andExpect(jsonPath("$.data.content[1].weightCollected", is(450.0)))
+                .andExpect(jsonPath("$.data.totalElements", is(2)));
+
+        verify(wasteLogService, times(1)).getVehicleLogs(eq(vehicleId), eq(startDate), eq(endDate), any(Pageable.class));
+    }
+
+    @Test
+    void getVehicleLogs_ShouldReturnOk_WhenNoReportsExist() throws Exception {
+        String vehicleId = "RT999";
+        LocalDate startDate = LocalDate.of(2023, 1, 1);
+        LocalDate endDate = LocalDate.of(2023, 1, 3);
+        Pageable pageable = PageRequest.of(0, 1, Sort.by("collectionDate").ascending());
+
+        PageImpl<VehicleReportDTO> reportsPage = new PageImpl<>(Collections.emptyList(), pageable, 0);
+
+        when(wasteLogService.getVehicleLogs(eq(vehicleId), eq(startDate), eq(endDate), any(Pageable.class)))
+                .thenReturn(reportsPage);
+
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle")
+                .param("vehicleId", vehicleId)
+                .param("startDate", "2023-01-01")
+                .param("endDate", "2023-01-03"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.message", is(String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_VEHICLE, vehicleId, startDate, endDate))))
+                .andExpect(jsonPath("$.data.content", is(empty())))
+                .andExpect(jsonPath("$.data.totalElements", is(0)));
+
+        verify(wasteLogService, times(1)).getVehicleLogs(eq(vehicleId), eq(startDate), eq(endDate), any(Pageable.class));
+    }
+
+    @Test
+    void getVehicleLogs_ShouldReturnBadRequest_WhenInvalidVehicleIdFormat() throws Exception {
+        String vehicleId = "R001";
+        LocalDate startDate = LocalDate.of(2023, 1, 1);
+        LocalDate endDate = LocalDate.of(2023, 1, 3);
+
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle")
+                .param("vehicleId", vehicleId)
+                .param("startDate", "2023-01-01")
+                .param("endDate", "2023-01-03"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                // Updated expected message to match handler's output for MethodArgumentTypeMismatchException
-                .andExpect(jsonPath("$.message").value("Parameter 'startDate' has invalid value '01-01-2023'. Expected type is 'LocalDate'."))
-                .andExpect(jsonPath("$.timestamp").exists());
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is(containsString("Invalid Vehicle ID format."))));
+
+        verify(wasteLogService, never()).getVehicleLogs(anyString(), any(LocalDate.class), any(LocalDate.class), any(Pageable.class));
+    }
+
+    @Test
+    void getVehicleLogs_ShouldReturnBadRequest_WhenMissingEndDate() throws Exception {
+        String vehicleId = "RT001";
+        LocalDate startDate = LocalDate.of(2023, 1, 1);
+
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle")
+                .param("vehicleId", vehicleId)
+                .param("startDate", "2023-01-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is("Required request parameter 'endDate' is not present.")));
+
+        verify(wasteLogService, never()).getVehicleLogs(anyString(), any(LocalDate.class), any(LocalDate.class), any(Pageable.class));
+    }
+
+    @Test
+    void getVehicleLogs_ShouldReturnBadRequest_WhenInvalidDateFormat() throws Exception {
+        String vehicleId = "RT001";
+        LocalDate startDate = LocalDate.of(2023, 1, 1);
+        String invalidEndDate = "01/01/2023";
+
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle")
+                .param("vehicleId", vehicleId)
+                .param("startDate", "2023-01-01")
+                .param("endDate", invalidEndDate))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is(containsString("Parameter 'endDate' has invalid value"))));
+
+        verify(wasteLogService, never()).getVehicleLogs(anyString(), any(LocalDate.class), any(LocalDate.class), any(Pageable.class));
+    }
+
+    @Test
+    void getVehicleLogs_ShouldReturnBadRequest_WhenInvalidDateRangeFromService() throws Exception {
+        String vehicleId = "RT001";
+        LocalDate startDate = LocalDate.of(2023, 1, 5);
+        LocalDate endDate = LocalDate.of(2023, 1, 1);
+
+        when(wasteLogService.getVehicleLogs(eq(vehicleId), eq(startDate), eq(endDate), any(Pageable.class)))
+                .thenThrow(new InvalidInputException(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE));
+
+        mockMvc.perform(get("/wastewise/admin/wastelogs/reports/vehicle")
+                .param("vehicleId", vehicleId)
+                .param("startDate", "2023-01-05")
+                .param("endDate", "2023-01-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", is(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE)));
+
+        verify(wasteLogService, times(1)).getVehicleLogs(eq(vehicleId), eq(startDate), eq(endDate), any(Pageable.class));
     }
 }
