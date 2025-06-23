@@ -11,6 +11,8 @@ import com.WasteWise.WasteCollectionLogs.Handler.InvalidInputException;
 import com.WasteWise.WasteCollectionLogs.Handler.LogAlreadyCompletedException;
 import com.WasteWise.WasteCollectionLogs.Handler.ResourceNotFoundException;
 import com.WasteWise.WasteCollectionLogs.ServiceImpl.WasteLogServiceImpl;
+
+//import org.hibernate.validator.internal.util.logging.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault; 
@@ -22,7 +24,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
+import org.slf4j.Logger; 
+import org.slf4j.LoggerFactory;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -42,7 +45,8 @@ import java.util.List;
 @RequestMapping("wastewise/admin/wastelogs")
 @Validated 
 public class WasteLogController {
-
+	
+	 private static final Logger logger = LoggerFactory.getLogger(WasteLogController.class); 
     private final WasteLogServiceImpl wasteLogService;
 
     /**
@@ -53,6 +57,7 @@ public class WasteLogController {
      */
     public WasteLogController(WasteLogServiceImpl wasteLogService) {
         this.wasteLogService = wasteLogService;
+        logger.info("WasteLogController initialized.");
     }
 
     /**
@@ -70,6 +75,7 @@ public class WasteLogController {
      */
     @PostMapping("/start")
     public ResponseEntity<RestResponse<Object>> startCollection(@Valid @RequestBody WasteLogStartRequestDTO request) {
+    	 logger.info("Received request to start collection: {}", request);
         WasteLogResponseDTO serviceResponse = wasteLogService.startCollection(request); // Service returns raw DTO
         // Build RestResponse in the controller
         RestResponse<Object> restResponse = new RestResponse<>(
@@ -77,6 +83,8 @@ public class WasteLogController {
             serviceResponse.getMessage(), // Use message from service DTO
             serviceResponse // Pass the service DTO as data
         );
+        logger.info("Collection started successfully. Response: {}", restResponse);
+
         return new ResponseEntity<>(restResponse, HttpStatus.CREATED);
     }
 
@@ -95,6 +103,7 @@ public class WasteLogController {
      */
     @PutMapping("/end")
     public ResponseEntity<RestResponse<Object>> endCollection(@Valid @RequestBody WasteLogUpdateRequestDTO request) {
+    	  logger.info("Received request to end collection: {}", request);
         WasteLogResponseDTO serviceResponse = wasteLogService.endCollection(request); // Service returns raw DTO
         // Build RestResponse in the controller
         RestResponse<Object> restResponse = new RestResponse<>(
@@ -102,6 +111,7 @@ public class WasteLogController {
             serviceResponse.getMessage(), // Use message from service DTO
             serviceResponse // Pass the service DTO as data
         );
+        logger.info("Collection ended successfully. Response: {}", restResponse);
         return ResponseEntity.ok(restResponse);
     }
     /**
@@ -123,21 +133,24 @@ public class WasteLogController {
      * @throws jakarta.validation.ConstraintViolationException If `zoneId` does not match the required pattern.
      * @throws org.springframework.web.method.annotation.MethodArgumentTypeMismatchException If dates are not in correct format.
      */
-    @GetMapping("/reports/zone/{zoneId}")
+    @GetMapping("/reports/zone")
     public ResponseEntity<RestResponse<Page<ZoneReportDTO>>> getZoneLogs( // Return type changed
-            @PathVariable @Pattern(regexp = WasteLogConstants.ZONE_ID_REGEX,
+            @RequestParam @Pattern(regexp = WasteLogConstants.ZONE_ID_REGEX,
                     message = "Invalid Zone ID format. Must be Z### (e.g., Z001).") String zoneId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @PageableDefault(size=1,sort = "date", direction = Sort.Direction.ASC) Pageable pageable) { // Added Pageable with fixed sort default
-
+    	  logger.info("Received request for zone report: zoneId={}, startDate={}, endDate={}, pageable={}",
+                  zoneId, startDate, endDate, pageable);
         Page<ZoneReportDTO> reportsPage = wasteLogService.getZoneLogs(zoneId, startDate, endDate, pageable); // Pass pageable
 
         String message = reportsPage.isEmpty() ?
                 String.format(WasteLogConstants.NO_COMPLETED_LOGS_FOUND_ZONE, zoneId, startDate.toString(), endDate.toString()) :
                 "Zone report generated successfully.";
 
-        RestResponse<Page<ZoneReportDTO>> restResponse = new RestResponse<>(true, message, reportsPage); // Data is now a Page
+        RestResponse<Page<ZoneReportDTO>> restResponse = new RestResponse<>(true, message, reportsPage); 
+        logger.info("Zone report generated. Page size: {}, Total elements: {}. Response: {}",
+                reportsPage.getContent().size(), reportsPage.getTotalElements(), restResponse);
         return ResponseEntity.ok(restResponse);
     }
 
@@ -160,14 +173,15 @@ public class WasteLogController {
      * @throws jakarta.validation.ConstraintViolationException If `vehicleId` does not match the required pattern.
      * @throws org.springframework.web.method.annotation.MethodArgumentTypeMismatchException If dates are not in correct format.
      */
-    @GetMapping("/reports/vehicle/{vehicleId}")
+    @GetMapping("/reports/vehicle")
     public ResponseEntity<RestResponse<Page<VehicleReportDTO>>> getVehicleLogs(
-            @PathVariable @Pattern(regexp = WasteLogConstants.VEHICLE_ID_REGEX,
+            @RequestParam @Pattern(regexp = WasteLogConstants.VEHICLE_ID_REGEX,
                     message = "Invalid Vehicle ID format. Must be RT### or PT### (e.g., RT001).") String vehicleId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @PageableDefault(size=1,sort = "collectionDate", direction = Sort.Direction.ASC) Pageable pageable) { 
-
+    	 logger.info("Received request for vehicle report: vehicleId={}, startDate={}, endDate={}, pageable={}",
+                 vehicleId, startDate, endDate, pageable);
         Page<VehicleReportDTO> reportsPage = wasteLogService.getVehicleLogs(vehicleId, startDate, endDate, pageable); 
 
         String message = reportsPage.isEmpty() ?
@@ -175,6 +189,8 @@ public class WasteLogController {
                 WasteLogConstants.VEHICLE_REPORT_GENERATED_SUCCESSFULLY;
 
         RestResponse<Page<VehicleReportDTO>> restResponse = new RestResponse<>(true, message, reportsPage);
+        logger.info("Vehicle report generated. Page size: {}, Total elements: {}. Response: {}",
+                reportsPage.getContent().size(), reportsPage.getTotalElements(), restResponse);
         return ResponseEntity.ok(restResponse);
     }
 }

@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page; 
 import org.springframework.data.domain.PageImpl; 
 import org.springframework.data.domain.Pageable;
@@ -31,6 +33,8 @@ import com.WasteWise.WasteCollectionLogs.Repository.WasteLogRepository;
 @Service
 public class WasteLogServiceImpl {
 
+	private static final Logger logger = LoggerFactory.getLogger(WasteLogServiceImpl.class);
+	
     private final WasteLogRepository wasteLogRepository;
 
     /**
@@ -40,6 +44,7 @@ public class WasteLogServiceImpl {
      */
     public WasteLogServiceImpl(WasteLogRepository wasteLogRepository) {
         this.wasteLogRepository = wasteLogRepository;
+        logger.info("WasteLogServiceImpl initialized.");
     }
 
     /**
@@ -50,9 +55,12 @@ public class WasteLogServiceImpl {
      * @throws InvalidInputException if the end date is before the start date.
      */
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+    	logger.debug("Validating date range: startDate={}, endDate={}", startDate, endDate);
         if (startDate.isAfter(endDate)) {
+        	logger.warn("InvalidDateRange: End date {} cannot be before start date {}", endDate, startDate);
             throw new InvalidInputException(WasteLogConstants.END_DATE_CANNOT_BE_BEFORE_START_DATE);
         }
+        logger.debug("Date range validation successful.");
     }
 
     /**
@@ -65,10 +73,13 @@ public class WasteLogServiceImpl {
      * @throws InvalidInputException if an active log is found for the given criteria.
      */
     private void validateNoActiveLogExists(String workerId, String zoneId, String vehicleId) {
+    	 logger.debug("Checking for active log for workerId={}, zoneId={}, vehicleId={}", workerId, zoneId, vehicleId);
         if (wasteLogRepository.findByWorkerIdAndZoneIdAndVehicleIdAndCollectionEndTimeIsNull(
                 workerId, zoneId, vehicleId).isPresent()) {
+        	 logger.warn("ActiveLogExists: An active log already exists for workerId={}, zoneId={}, vehicleId={}", workerId, zoneId, vehicleId);
             throw new InvalidInputException( String.format(WasteLogConstants.ACTIVE_LOG_EXISTS_MESSAGE, workerId, zoneId, vehicleId));
         }
+        logger.debug("No active log found for workerId={}, zoneId={}, vehicleId={}", workerId, zoneId, vehicleId);
     }
     // --- Public Service Methods ---
 
@@ -79,7 +90,9 @@ public class WasteLogServiceImpl {
      * @param request The DTO containing information to start a waste collection log (worker ID, zone ID, vehicle ID).
      * @return A WasteLogResponseDto with the ID of the newly created log and a success message.
      */
-    public WasteLogResponseDTO startCollection(WasteLogStartRequestDTO request) { // Original return type
+    public WasteLogResponseDTO startCollection(WasteLogStartRequestDTO request) { 
+    	 logger.info("Attempting to start new collection log for workerId={}, zoneId={}, vehicleId={}",
+                 request.getWorkerId(), request.getZoneId(), request.getVehicleId());
         // The DTO validation ensures the request is valid before it reaches here.
     	validateNoActiveLogExists(request.getWorkerId(), request.getZoneId(), request.getVehicleId());
 
@@ -91,6 +104,7 @@ public class WasteLogServiceImpl {
         wasteLog.setCreatedDate(LocalDateTime.now());
 
         wasteLog = wasteLogRepository.save(wasteLog);
+        logger.info("New collection log started successfully with ID: {}", wasteLog.getLogId());
 
         return new WasteLogResponseDTO(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_RECORDED_SUCCESSFULLY);
     }
@@ -106,17 +120,23 @@ public class WasteLogServiceImpl {
      * @throws LogAlreadyCompletedException if the waste log has already been completed.
      * @throws InvalidInputException if the collection end time is before the collection start time.
      */
-    public WasteLogResponseDTO endCollection(WasteLogUpdateRequestDTO request) { // Original return type
+    public WasteLogResponseDTO endCollection(WasteLogUpdateRequestDTO request) {
 
-        WasteLog wasteLog = wasteLogRepository.findById(request.getLogId())
-                .orElseThrow(() -> new ResourceNotFoundException(String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE, request.getLogId())));
-
+    	logger.info("Attempting to end collection log with ID: {} and weight: {}", request.getLogId(), request.getWeightCollected());
+    	WasteLog wasteLog = wasteLogRepository.findById(request.getLogId())
+                .orElseThrow(() -> {
+                    logger.warn("ResourceNotFound: Waste log with ID {} not found.", request.getLogId());
+                    return new ResourceNotFoundException(String.format(WasteLogConstants.WASTE_LOG_NOT_FOUND_MESSAGE, request.getLogId()));
+                });
         if (wasteLog.getCollectionEndTime() != null) {
+        	logger.warn("LogAlreadyCompleted: Waste log with ID {} is already completed.", request.getLogId());
             throw new LogAlreadyCompletedException(String.format(WasteLogConstants.LOG_ALREADY_COMPLETED_MESSAGE, request.getLogId()));
         }
 
         LocalDateTime currentEndTime = LocalDateTime.now();
+        
         if (currentEndTime.isBefore(wasteLog.getCollectionStartTime())) {
+        	 logger.warn("InvalidInput: Collection end time {} is before start time {}", currentEndTime, wasteLog.getCollectionStartTime());
             throw new InvalidInputException(WasteLogConstants.COLLECTION_END_TIME_BEFORE_START_TIME);
         }
 
@@ -125,7 +145,7 @@ public class WasteLogServiceImpl {
         wasteLog.setUpdatedDate(LocalDateTime.now());
 
         wasteLogRepository.save(wasteLog);
-
+        logger.info("Collection log with ID: {} completed successfully.", wasteLog.getLogId());
         return new WasteLogResponseDTO(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY);
     }
 
@@ -142,17 +162,20 @@ public class WasteLogServiceImpl {
      * @throws InvalidInputException if the end date is before the start date.
      */
     public Page<ZoneReportDTO> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate, Pageable pageable) { 
+    	 logger.info("Generating zone report for zoneId={}, startDate={}, endDate={}, pageable={}",
+                 zoneId, startDate, endDate, pageable);
         validateDateRange(startDate, endDate);
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
 
         List<WasteLog> logs = wasteLogRepository.findByZoneIdAndCollectionStartTimeBetween(zoneId, startDateTime, endDateTime);
+        logger.debug("Found {} waste logs for zoneId={} between {} and {}", logs.size(), zoneId, startDateTime, endDateTime);
 
         Map<LocalDate, List<WasteLog>> groupedByDate = logs.stream()
                 .filter(log -> log.getCollectionEndTime() != null)
                 .collect(Collectors.groupingBy(log -> log.getCollectionStartTime().toLocalDate()));
-
+        logger.debug("Grouped {} completed logs by date for zoneId={}", groupedByDate.size(), zoneId);
         List<ZoneReportDTO> reports = groupedByDate.entrySet().stream()
                 .map(entry -> {
                     LocalDate date = entry.getKey();
@@ -163,7 +186,7 @@ public class WasteLogServiceImpl {
                     Set<String> uniqueVehicles = dailyLogs.stream()
                             .map(WasteLog::getVehicleId)
                             .collect(Collectors.toSet());
-
+                    logger.trace("Daily summary for zoneId={} on {}: totalWeight={}, uniqueVehicles={}", zoneId, date, totalWeight, uniqueVehicles.size());
                     return new ZoneReportDTO(zoneId, date, (long) uniqueVehicles.size(), totalWeight);
                 })
                 .sorted((r1, r2) -> r1.getDate().compareTo(r2.getDate())) // Your original sorting by date
@@ -175,8 +198,10 @@ public class WasteLogServiceImpl {
         List<ZoneReportDTO> pageContent;
         if (start > reports.size()) {
             pageContent = List.of(); 
+            logger.debug("Requested page start index {} is beyond report size {} for zoneId={}. Returning empty page.", start, reports.size(), zoneId);
         } else {
             pageContent = reports.subList(start, end);
+            logger.debug("Returning page {} with {} entries for zoneId={}", pageable.getPageNumber(), pageContent.size(), zoneId);
         }
 
         return new PageImpl<>(pageContent, pageable, reports.size());
@@ -194,14 +219,15 @@ public class WasteLogServiceImpl {
      * @throws InvalidInputException if the end date is before the start date.
      */
     public Page<VehicleReportDTO> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate, Pageable pageable) { 
-
+    	 logger.info("Generating vehicle report for vehicleId={}, startDate={}, endDate={}, pageable={}",
+                 vehicleId, startDate, endDate, pageable);
         validateDateRange(startDate, endDate);
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
 
         List<WasteLog> logs = wasteLogRepository.findByVehicleIdAndCollectionStartTimeBetween(vehicleId, startDateTime, endDateTime);
-
+        logger.debug("Found {} waste logs for vehicleId={} between {} and {}", logs.size(), vehicleId, startDateTime, endDateTime);
         List<VehicleReportDTO> reports = logs.stream()
                 .filter(log -> log.getCollectionEndTime() != null) // Only include completed logs
                 .map(log -> new VehicleReportDTO(
@@ -212,6 +238,7 @@ public class WasteLogServiceImpl {
                 ))
                 .sorted((r1, r2) -> r1.getCollectionDate().compareTo(r2.getCollectionDate())) // Your original sorting by collection date
                 .collect(Collectors.toList());
+        logger.debug("Prepared {} VehicleReportDTO entries for vehicleId={}", reports.size(), vehicleId);
 
         int start = (int) pageable.getOffset();
         int end = Math.min((start + pageable.getPageSize()), reports.size());
@@ -219,8 +246,10 @@ public class WasteLogServiceImpl {
         List<VehicleReportDTO> pageContent;
         if (start > reports.size()) {
             pageContent = List.of(); 
+            logger.debug("Requested page start index {} is beyond report size {} for vehicleId={}. Returning empty page.", start, reports.size(), vehicleId);
         } else {
             pageContent = reports.subList(start, end);
+            logger.debug("Returning page {} with {} entries for vehicleId={}", pageable.getPageNumber(), pageContent.size(), vehicleId);
         }
 
         return new PageImpl<>(pageContent, pageable, reports.size());
