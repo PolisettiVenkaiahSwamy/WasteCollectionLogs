@@ -9,7 +9,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
-
+import org.springframework.data.domain.Page; 
+import org.springframework.data.domain.PageImpl; 
+import org.springframework.data.domain.Pageable;
 import com.WasteWise.WasteCollectionLogs.Constants.WasteLogConstants;
 import com.WasteWise.WasteCollectionLogs.Dto.VehicleReportDTO;
 import com.WasteWise.WasteCollectionLogs.Dto.WasteLogResponseDTO;
@@ -127,6 +129,7 @@ public class WasteLogServiceImpl {
         return new WasteLogResponseDTO(wasteLog.getLogId(), WasteLogConstants.WASTE_COLLECTION_LOG_COMPLETED_SUCCESSFULLY);
     }
 
+
     /**
      * Retrieves a report of waste collection logs for a specific zone within a given date range.
      * The reports are grouped by date and include total weight collected and the count of unique vehicles used.
@@ -134,11 +137,11 @@ public class WasteLogServiceImpl {
      * @param zoneId The ID of the zone to retrieve logs for.
      * @param startDate The start date of the reporting period.
      * @param endDate The end date of the reporting period.
-     * @return A list of ZoneReportDto objects, sorted by date.
+     * @param pageable Pagination and sorting information.
+     * @return A Page of ZoneReportDto objects, containing daily summaries.
      * @throws InvalidInputException if the end date is before the start date.
      */
-    public List<ZoneReportDTO> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate) { // Original return type
-
+    public Page<ZoneReportDTO> getZoneLogs(String zoneId, LocalDate startDate, LocalDate endDate, Pageable pageable) { 
         validateDateRange(startDate, endDate);
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
@@ -163,10 +166,21 @@ public class WasteLogServiceImpl {
 
                     return new ZoneReportDTO(zoneId, date, (long) uniqueVehicles.size(), totalWeight);
                 })
-                .sorted((r1, r2) -> r1.getDate().compareTo(r2.getDate()))
+                .sorted((r1, r2) -> r1.getDate().compareTo(r2.getDate())) // Your original sorting by date
                 .collect(Collectors.toList());
 
-        return reports;
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), reports.size());
+
+        List<ZoneReportDTO> pageContent;
+        if (start > reports.size()) {
+            pageContent = List.of(); 
+        } else {
+            pageContent = reports.subList(start, end);
+        }
+
+        return new PageImpl<>(pageContent, pageable, reports.size());
+      
     }
 
     /**
@@ -175,10 +189,11 @@ public class WasteLogServiceImpl {
      * @param vehicleId The ID of the vehicle to retrieve logs for.
      * @param startDate The start date of the reporting period.
      * @param endDate The end date of the reporting period.
-     * @return A list of VehicleReportDto objects, sorted by collection date.
+     * @param pageable Pagination and sorting information.
+     * @return A Page of VehicleReportDto objects.
      * @throws InvalidInputException if the end date is before the start date.
      */
-    public List<VehicleReportDTO> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate) {
+    public Page<VehicleReportDTO> getVehicleLogs(String vehicleId, LocalDate startDate, LocalDate endDate, Pageable pageable) { 
 
         validateDateRange(startDate, endDate);
 
@@ -195,9 +210,19 @@ public class WasteLogServiceImpl {
                         log.getWeightCollected(),
                         log.getCollectionStartTime().toLocalDate()
                 ))
-                .sorted((r1, r2) -> r1.getCollectionDate().compareTo(r2.getCollectionDate()))
+                .sorted((r1, r2) -> r1.getCollectionDate().compareTo(r2.getCollectionDate())) // Your original sorting by collection date
                 .collect(Collectors.toList());
 
-        return reports;
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), reports.size());
+
+        List<VehicleReportDTO> pageContent;
+        if (start > reports.size()) {
+            pageContent = List.of(); 
+        } else {
+            pageContent = reports.subList(start, end);
+        }
+
+        return new PageImpl<>(pageContent, pageable, reports.size());
     }
 }
