@@ -1,0 +1,5 @@
+2025-06-24 08:29:53.346 [background-preinit] INFO  o.h.validator.internal.util.Version - HV000001: Hibernate Validator 8.0.2.Final
+2025-06-24 08:29:53.380 [restartedMain] INFO  c.W.W.WasteCollectionApplication - Starting WasteCollectionApplication using Java 21.0.6 with PID 9648 (C:\WasteManagement\WasteCollection\target\classes started by 2408530 in C:\WasteManagement\WasteCollection)
+2025-06-24 08:29:53.381 [restartedMain] INFO  c.W.W.WasteCollectionApplication - No active profile set, falling back to 1 default profile: "default"
+2025-06-24 08:29:53.426 [restartedMain] INFO  o.s.b.d.e.DevToolsPropertyDefaultsPostProcessor - Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2025-06-24 08:29:53.427 [restartedMain] INFO  o.s.b.d.e.DevToolsPropertyDefaultsPostProcessor - For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
